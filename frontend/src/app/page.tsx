@@ -1,65 +1,138 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type Msg = { role: "user" | "ai"; text: string };
+
+export default function Page() {
+  const API_BASE = useMemo(
+    () => process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000",
+    []
+  );
+
+  const [messages, setMessages] = useState<Msg[]>([
+    { role: "ai", text: "Ciao. Scrivi qualcosa e premi Invio." },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function send() {
+    const text = input.trim();
+    if (!text || loading) return;
+
+    setMessages((m) => [...m, { role: "user", text }]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      const data = await res.json();
+      const answer =
+        (typeof data?.text === "string" && data.text) ||
+        "Risposta non valida (controlla il backend).";
+
+      setMessages((m) => [...m, { role: "ai", text: answer }]);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: "ai", text: "Errore: backend non raggiungibile." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") send();
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      {/* Header */}
+      <div className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-zinc-800" />
+            <div>
+              <div className="text-sm font-semibold">void.ai</div>
+              <div className="text-xs text-zinc-400">Dev chat (locale)</div>
+            </div>
+          </div>
+
+          <div className="text-xs text-zinc-400">
+            API: <span className="text-zinc-200">{API_BASE}</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </div>
+
+      {/* Messages */}
+      <div className="mx-auto max-w-3xl px-4 py-6 pb-28">
+        {messages.map((m, i) => (
+          <div
+            key={i}
+            className={`mb-3 flex ${
+              m.role === "user" ? "justify-end" : "justify-start"
+            }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div
+              className={[
+                "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                m.role === "user"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-zinc-900 text-zinc-100 border border-zinc-800",
+              ].join(" ")}
+            >
+              {m.text}
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div className="mb-3 flex justify-start">
+            <div className="max-w-[85%] rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-300">
+              Sta pensando…
+            </div>
+          </div>
+        )}
+
+        <div ref={endRef} />
+      </div>
+
+      {/* Input bar */}
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl gap-2 px-4 py-3">
+          <input
+            className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm outline-none placeholder:text-zinc-500 focus:border-zinc-600"
+            placeholder="Scrivi un messaggio…"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={loading}
+          />
+          <button
+            className="rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            onClick={send}
+            disabled={loading || !input.trim()}
           >
-            Documentation
-          </a>
+            Invia
+          </button>
         </div>
-      </main>
+
+        <div className="mx-auto max-w-3xl px-4 pb-3 text-xs text-zinc-500">
+          Nessun account • Dev mode
+        </div>
+      </div>
     </div>
   );
 }
