@@ -1,0 +1,27 @@
+1.0
+Gratuito:
+- LLM private uncensored medio alto solo text 10 free trial
+Pagamento:
+- LLM private uncensored medio alto solo text
+
+2.0
+Gratuito:
+- LLM private uncensored medio alto solo text 10 free trial
+Pagamento:
+- LLM private uncensored medio alto solo text + web search
+
+3.0
+Gratuito:
+- LLM private uncensored medio alto + web search 10 free trial 
+Pagamento:
+- LLM private uncensored alto text/coding + web search
+
+4.0
+Gratuito:
+- LLM private uncensored medio alto + web search 10 free trial 
+- LLM private uncensored medio alto no web search 100% free
+Pagameto:
+- LLM private uncensored alto text/coding + web search
+- LLM private uncensored alto image (video?)
+- LLM private alto text/coding + web search
+- LLM private alto image (video?)
