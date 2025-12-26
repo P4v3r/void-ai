@@ -613,7 +613,7 @@ export default function Page() {
           <div className="wpBrand">
             <span>VOID / AI</span>
           </div>
-          <span>_beta V1.d5</span>
+          <span>_beta V1.d6</span>
           <button className="wpBtn" style={{padding: "4px 8px", fontSize: "12px"}} onClick={() => void clearChat()}>
             + New Chat
           </button>
