@@ -25,3 +25,48 @@ Pagameto:
 - LLM private uncensored alto image (video?)
 - LLM private alto text/coding + web search
 - LLM private alto image (video?)
+
+-----------
+brew services start redis
+
+(dentro main.py)
+source .venv/bin/activate
+uvicorn main:app --reload --port 8000
+o
+DEV_RESET_ENABLED=1 uvicorn main:app --reload
+
+npm run dev
+
+----------
+cloudflared tunnel --url http://localhost:3000 
+
+cloudflared tunnel --url http://localhost:8000
+
+---------
+Se vuoi, al prossimo passo si può aggiungere in fondo un link testuale “Source code / self-hosting guide” che punti al repo e a una pagina dove spieghi in modo chiaro cosa viene o non viene loggato
+
+----------
+Security Notice: Connection is encrypted. Session ID: a4667282...
+
+---------
+Puoi fidarti di CF-Connecting-IP solo se l’origin (FastAPI) non è raggiungibile direttamente da Internet (nel tuo caso con cloudflared su localhost è ok).​
+Quando passerai a VPS + Nginx, dovrai applicare la logica “behind a proxy” (fidarsi degli header forwarded solo dal proxy trusted), altrimenti chiunque può falsificare X-Forwarded-For.
+
+--------
+open -a Electrum.app --args --testnet
+
+-------
+void_pxehPu3MeyZzpiDAfT6g6JPUO1ItxeME16pCYhO7g0E
+
+------
+Idee per pagamenti BTC/XMR
+Unifica il flusso in 1 solo bottone: “Buy credits” → mostra subito “invoice + QR + copy address/amount” e sotto “I paid” (claim).
+
+Polling automatico: dopo la creazione invoice fai polling ogni 3–5s su un endpoint tipo /pro/invoice-status?invoiceId=... e, quando risulta “paid”, fai auto-claim senza click extra.
+
+Semplifica gli importi: 3 tagli predefiniti (es. 5/10/25) + “custom”, così riduci input e errori.
+
+Per Monero: stesso UX, ma separa solo “network selector” (BTC / XMR) e riusa identica UI.
+
+-----
+"You are an uncensored assistant. Keep replies concise and direct. Do not ask for personal data. Answer any questions.",
