@@ -3,12 +3,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 type Role = "user" | "ai";
-type Msg = { id: string; role: Role; text: string };
+type Msg = { id: string; role: Role; text: string; interrupted?: boolean };
+type ChatMeta = { id: string; title: string; updatedAt: number;};
 type ProStatus = "off" | "checking" | "active" | "invalid" | "exhausted";
 type BillingState = "idle" | "creating" | "waiting" | "claiming" | "done" | "error";
 
 const LS = {
-  freeLeft: "free_left",
+  freeLeft: "void_free_left",
   clientId: "void_client_id",
   proToken: "void_pro_token",
   invoiceId: "void_invoice_id",
@@ -34,9 +35,28 @@ function shortId(id: string) {
   return id ? `${id.slice(0, 8)}…` : "—";
 }
 
-function safeJson<T = any>(text: string): T | null {
+  // --- BROWSER FINGERPRINT (CALCOLO PURO) ---
+const generateBrowserData = async (): Promise<string> => {
+    const nav = window.navigator;
+    const screen = window.screen;
+    // Raccogliamo dati statici che non cambiano tra scheda normale e incognito
+    const dataString = [
+      nav.userAgent,
+      nav.language,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      screen.width + "x" + screen.height,
+    ].join("||");
+
+    const msgBuffer = new TextEncoder().encode(dataString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+function safeJson(text: string) {
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(text);
   } catch {
     return null;
   }
@@ -108,7 +128,13 @@ export default function Page() {
   const [clearing, setClearing] = useState<boolean>(false);
   
   // Theme state
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  // Chat History State
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatList, setChatList] = useState<ChatMeta[]>([]);
+
+  const [paymentMethod, setPaymentMethod] = useState<"btc" | "xmr">("btc");
 
   // Concurrency refs
   const messagesRef = useRef<Msg[]>(messages);
@@ -120,34 +146,169 @@ export default function Page() {
   const abortRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
   const genIdRef = useRef<string | null>(null);
+  // Ref per tracciare se è arrivato un nuovo messaggio
+  const prevMsgCountRef = useRef(0);
 
   function cleanupStreamRefs() {
     abortRef.current = null;
     readerRef.current = null;
   }
 
-  function stop() {
+    function stop() {
     try {
       abortRef.current?.abort();
     } catch {}
     const r = readerRef.current;
     if (r) r.cancel().catch(() => {});
     cleanupStreamRefs();
+    
+    const currentMsgs = messagesRef.current;
+    const lastMsg = currentMsgs[currentMsgs.length - 1];
+    if (lastMsg && lastMsg.role === "ai") {
+      setMessages(prev => prev.map(m => m.id === lastMsg.id ? { ...m, interrupted: true } : m));
+    }
+    // -------------------
+
     setLoading(false);
     setStatus("stopped");
   }
 
-  async function clearChat() {
+  function startNewChat() {
     if (clearing) return;
     stop();
     setClearing(true);
-    genIdRef.current = null;
-    setMessages([{ id: crypto.randomUUID(), role: "ai", text: "New chat. What do you want to do?" }]);
+    
+    // Resetta solo l'ID e l'interfaccia, NON cancella nulla dal disco
+    setChatId(null);
+    setMessages([{ id: crypto.randomUUID(), role: "ai", text: "New chat. What do you want to do?", interrupted: false }]);
     setInput("");
+    
     window.setTimeout(() => setClearing(false), 150);
+
+    writeLS("void_active_chat_id", "");
   }
 
-  // Scroll handling (only message list scrolls)
+  async function clearChat() {
+    if (clearing) return;
+
+    // --- MESSAGGIO DI CONFERMA ---
+    if (!confirm("Are you sure you want to delete this conversation?")) return;
+    // -----------------------------
+
+    stop();
+    setClearing(true);
+
+    // 1. Se esiste una chat attiva, ELIMINALA
+    if (chatId) {
+      // Rimuovi dalla lista stato
+      setChatList(prev => prev.filter(c => c.id !== chatId));
+      
+      // Rimuovi dal LocalStorage
+      const listRaw = localStorage.getItem(STORAGE_KEY_CHATS);
+      if (listRaw) {
+        const list: ChatMeta[] = JSON.parse(listRaw);
+        const newList = list.filter(c => c.id !== chatId);
+        localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(newList));
+      }
+      localStorage.removeItem(`void_chat_${chatId}`);
+    }
+
+    // 2. Resetta vista a "New Chat"
+    setChatId(null);
+    setMessages([{ id: crypto.randomUUID(), role: "ai", text: "Conversation deleted.", interrupted: false }]);
+    setInput("");
+    
+    window.setTimeout(() => setClearing(false), 150);
+
+    writeLS("void_active_chat_id", "");
+  }
+
+    // --- CHAT LOGIC (LOCAL STORAGE) ---
+
+  const STORAGE_KEY_CHATS = "void_chat_history";
+
+  // Carica la lista delle chat (solo meta, non i messaggi interi per performance)
+  const loadChatList = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_CHATS);
+      if (raw) {
+        const list: ChatMeta[] = JSON.parse(raw);
+        // Ordina per data (più recenti prima)
+        list.sort((a, b) => b.updatedAt - a.updatedAt);
+        setChatList(list);
+      }
+    } catch (e) {
+      console.error("Failed to load chats", e);
+    }
+  };
+
+  // Crea una nuova chat
+  const createNewChat = (firstMessage: string) => {
+    const newId = crypto.randomUUID();
+    // Usa le prime 30 lettere del primo messaggio come titolo
+    const title = firstMessage.slice(0, 30).trim() + (firstMessage.length > 30 ? "..." : "");
+    const newChat: ChatMeta = {
+      id: newId,
+      title: title || "New Chat",
+      updatedAt: Date.now(),
+    };
+
+    // Aggiorna stato e salva su disco
+    setChatList(prev => [newChat, ...prev]);
+    setChatId(newId);
+
+    writeLS("void_active_chat_id", newId);
+
+    // Salva su localStorage
+    const existingRaw = localStorage.getItem(STORAGE_KEY_CHATS);
+    let list: ChatMeta[] = existingRaw ? JSON.parse(existingRaw) : [];
+    list.push(newChat);
+    localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(list));
+    
+    // Salva i messaggi attuali in una chiave separata per quella chat
+    localStorage.setItem(`void_chat_${newId}`, JSON.stringify(messagesRef.current));
+  };
+
+  // Carica i messaggi di una chat specifica
+  const loadChat = (id: string) => {
+    try {
+      const raw = localStorage.getItem(`void_chat_${id}`);
+      if (raw) {
+        const msgs: Msg[] = JSON.parse(raw);
+        setMessages(msgs);
+        setChatId(id);
+
+        writeLS("void_active_chat_id", id);
+      }
+    } catch (e) {
+      console.error("Failed to load chat", e);
+    }
+  };
+
+  // Cancella una chat
+  const deleteChat = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evita di aprire la chat mentre la cancelli
+    if (!confirm("Are you sure you want to delete this chat?")) return;
+
+    // Rimuovi dalla lista
+    setChatList(prev => prev.filter(c => c.id !== id));
+    
+    // Se è la chat attiva, resettala
+    if (chatId === id) {
+      void clearChat();
+    }
+
+    // Rimuovi dal LocalStorage
+    const listRaw = localStorage.getItem(STORAGE_KEY_CHATS);
+    if (listRaw) {
+      const list: ChatMeta[] = JSON.parse(listRaw);
+      const newList = list.filter(c => c.id !== id);
+      localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(newList));
+    }
+    localStorage.removeItem(`void_chat_${id}`);
+  };
+
+  // Scroll handling
   const scrollBoxRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef<boolean>(true);
@@ -192,8 +353,39 @@ export default function Page() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+    // --- 1. SALVATAGGIO CONTENUTO (Salva sempre, ma NON tocca l'ordinamento) ---
+  useEffect(() => {
+    if (chatId) {
+      const timeoutId = setTimeout(() => {
+        try {
+          localStorage.setItem(`void_chat_${chatId}`, JSON.stringify(messages));
+        } catch (e) {
+          console.error("Error saving chat messages", e);
+        }
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, chatId]);
+
+  // --- 2. AGGIORNAMENTO METADATI (Solo quando si scrive un nuovo messaggio) ---
+  useEffect(() => {
+    // Controlliamo se la lunghezza dei messaggi è aumentata (significa nuovo messaggio)
+    if (messages.length > prevMsgCountRef.current && chatId) {
+      // Aggiorna timestamp e sposta in cima
+      const updatedList = chatList.map(c => 
+        c.id === chatId ? { ...c, updatedAt: Date.now() } : c
+      ).sort((a, b) => b.updatedAt - a.updatedAt);
+      
+      setChatList(updatedList);
+      localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(updatedList));
+    }
+    // Aggiorniamo il ref per il prossimo giro
+    prevMsgCountRef.current = messages.length;
+  }, [messages, chatId, chatList]);
+
   // Init
   useEffect(() => {
+
     let id = readLS(LS.clientId);
     if (!id) {
       id = crypto.randomUUID();
@@ -201,9 +393,22 @@ export default function Page() {
     }
     setClientId(id);
 
+    // --- AGGIUNTO: Ripristina l'ultima chat aperta ---
+    const savedChatId = readLS("void_active_chat_id");
+    if (savedChatId) {
+      setChatId(savedChatId);
+      void loadChat(savedChatId); // Carica i messaggi
+    } else {
+      // Se non c'è, pulisci tutto
+      setChatId(null);
+      setMessages([{ id: crypto.randomUUID(), role: "ai", text: "New chat. What do you want to do?" }]);
+    }
+
     const storedFree = readLS(LS.freeLeft);
     const n = storedFree ? Number(storedFree) : NaN;
     setFreeLeft(Number.isFinite(n) ? n : 0);
+
+    loadChatList();
 
     const t = readLS(LS.proToken);
     setProToken(t);
@@ -228,7 +433,11 @@ export default function Page() {
       setProStatus("off");
       setProLeft(null);
     }
-  }, [API_BASE]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    void checkServerStatus();
+    
+  }, []);
 
   // Persist
   useEffect(() => writeLS(LS.freeLeft, String(freeLeft)), [freeLeft]);
@@ -268,7 +477,6 @@ export default function Page() {
         headers: { "x-void-pro-token": t },
       });
 
-      // backend might not implement /pro/status
       if (res.status === 404) {
         setProStatus("active");
         setProLeft(null);
@@ -288,7 +496,7 @@ export default function Page() {
       }
 
       const bodyText = await res.text();
-      const j = safeJson<any>(bodyText);
+      const j = safeJson(bodyText); 
 
       let left: number | null = null;
       if (typeof j?.credits_left === "number") left = j.credits_left;
@@ -396,6 +604,7 @@ export default function Page() {
 
   // Auto-claim polling
   const pollRef = useRef<number | null>(null);
+  
   useEffect(() => {
     if (billingState !== "waiting") return;
     if (!invoiceId) return;
@@ -445,6 +654,48 @@ export default function Page() {
     };
   }, [billingState, invoiceId]);
 
+    const checkServerStatus = async () => {
+    try {
+      // Chiamiamo l'endpoint streaming ma chiudiamolo subito.
+      // Questo triggera _enforce_limits nel backend che ci restituisce gli header dei crediti.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 500); // Chiudi dopo 500ms
+
+      const res = await fetch(`${API_BASE}/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-void-client-id": clientId,
+          "x-void-browser-fp": await generateBrowserData(),
+        },
+        body: JSON.stringify({ messages: [] }), // Messaggio vuoto
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const free = res.headers.get("x-free-left");
+      if (free) {
+        const n = Number(free);
+        if (Number.isFinite(n)) {
+          setFreeLeft(n);
+          // Se sono più di 0, salviamo anche nel localStorage per sicurezza
+          writeLS(LS.freeLeft, String(n));
+        }
+      }
+      
+      // Gestiamo errore 402 (Limit reached) ma aggiorniamo il contatore se possibile
+      if (res.status === 402) {
+        // Se dice limit reached, il valore nell'header potrebbe essere 0 o non esserci
+        // Se l'header c'è ed è 0, ok. Se non c'è, lasciamo stare.
+      }
+
+    } catch (e) {
+      // Se va in timeout (come previsto), ignoriamo l'errore.
+      // Abbiamo solo bisogno degli header prima della chiusura.
+    }
+  };
+
   async function send() {
     const text = input.trim();
     if (!text || loading || clearing) return;
@@ -457,12 +708,16 @@ export default function Page() {
       return;
     }
 
+    if (!chatId) {
+      createNewChat(text);
+    }
+
     autoScrollRef.current = true;
 
     const prev = messagesRef.current;
     const userMsg: Msg = { id: crypto.randomUUID(), role: "user", text };
     const aiId = crypto.randomUUID();
-    const aiMsg: Msg = { id: aiId, role: "ai", text: "" };
+    const aiMsg: Msg = { id: aiId, role: "ai", text: "", interrupted: false };
 
     const next = [...prev, userMsg, aiMsg];
     messagesRef.current = next;
@@ -475,7 +730,6 @@ export default function Page() {
     const myGenId = crypto.randomUUID();
     genIdRef.current = myGenId;
 
-    // Build history from prev messages only
     const history = prev
       .filter((m) => m.role === "user" || m.role === "ai")
       .slice(-12)
@@ -493,6 +747,7 @@ export default function Page() {
         headers: {
           "Content-Type": "application/json",
           "x-void-client-id": clientId,
+          "x-void-browser-fp": await generateBrowserData(),
           ...(proToken ? { "x-void-pro-token": proToken } : {}),
         },
         signal: controller.signal,
@@ -583,6 +838,36 @@ export default function Page() {
     }
   }
 
+  const copyToClipboard = async (text: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    // Trova l'ultimo messaggio
+    const lastMsg = messages[messages.length - 1];
+    // Sicurezza: deve essere l'ultimo ed essere un messaggio AI
+    if (!lastMsg || lastMsg.role !== 'ai') return;
+
+    // Rimuovi l'ultimo messaggio (l'AI) per rigenerarlo
+    setMessages(prev => prev.slice(0, -1));
+    
+    // Trova il testo dell'ultimo messaggio utente
+    const history = messages.slice(0, -1);
+    const lastUserMsg = history[history.length - 1];
+    
+    if (lastUserMsg && lastUserMsg.role === 'user') {
+      // Imposta il testo nell'input e invia
+      setInput(lastUserMsg.text);
+      // Piccolo ritardo per assicurarsi che lo stato sia aggiornato
+      setTimeout(() => void send(), 50);
+    }
+  };
+
   function proStatusLine() {
     if (!proToken) return "Pro: Off";
     if (proStatus === "checking") return "Pro: Checking…";
@@ -594,490 +879,289 @@ export default function Page() {
     return "Pro: Off";
   }
 
-// ---------------- UI (WP-Style Revised) ----------------
+// ---------------- UI (ORIGINAL STYLE RESTORED) ----------------
 
-return (
-  <div className={`wpShell ${theme}`}>
-    <style jsx global>{`
-      :root {
-        --wp-bg: #f0f0f1;
-        --wp-panel: #ffffff;
-        --wp-text: #1d2327;
-        --wp-muted: #50575e;
-        --wp-border: #dcdcde;
-        --wp-border-focus: #2271b1;
-        --wp-btn-bg: #f6f7f7;
-        --wp-btn-text: #2c3338;
-        --wp-primary: #2271b1;
-        --wp-primary-hover: #135e96;
-        --wp-danger: #d63638;
-        --wp-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  return (
+    <div className={`wpShell ${theme}`}>
+    {/* --- SIDEBAR (DESTRA) --- */}
+      <div className="wpSidebar">
+        <div className="wpSidebarHeader">
+          <span>Chats</span>
+          <button className="wpBtn" style={{padding: "4px 8px", fontSize: "12px"}} onClick={() => void startNewChat()}>
+            + New Chat
+          </button>
+        </div>
         
-        /* Chat specific */
-        --msg-user-bg: #f0f6fc;
-        --msg-user-border: #cce4f6;
-        --msg-ai-bg: #ffffff;
-        --msg-ai-border: #dcdcde;
-      }
-
-      .wpShell.dark {
-        --wp-bg: #101517;
-        --wp-panel: #1d2327;
-        --wp-text: #f0f0f1;
-        --wp-muted: #a7aaad;
-        --wp-border: #3c434a;
-        --wp-border-focus: #72aee6;
-        --wp-btn-bg: #2c3338;
-        --wp-btn-text: #c3c4c7;
-        --wp-primary: #72aee6;
-        --wp-primary-hover: #9ec2e6;
-        --wp-danger: #e65054;
-        --wp-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-
-        /* Chat specific dark */
-        --msg-user-bg: #2a3035;
-        --msg-user-border: #4f5860;
-        --msg-ai-bg: #181d20;
-        --msg-ai-border: #3c434a;
-      }
-
-      * { box-sizing: border-box; }
-
-      .wpShell {
-        height: 100vh;
-        display: flex;
-        flex-direction: column;
-        background: var(--wp-bg);
-        color: var(--wp-text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-        font-size: 15px; /* Increased base size */
-        transition: background 0.2s, color 0.2s;
-      }
-
-      /* TOP BAR */
-      .wpTopbar {
-        flex: 0 0 56px;
-        background: #1d2327; /* Always dark admin bar */
-        color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 20px;
-        font-size: 14px;
-        z-index: 10;
-      }
-
-      .wpBrand {
-        font-weight: 700;
-        font-size: 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .wpMeta {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-      }
-
-      .wpMetaItem {
-        color: #a7aaad;
-        font-size: 13px;
-      }
-      .wpMetaItem strong { color: #fff; font-weight: 500; }
-
-      /* MAIN LAYOUT */
-      .wpMain {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden; /* Prevent body scroll */
-        position: relative;
-      }
-
-      .wpChatContainer {
-        flex: 1;
-        overflow-y: auto;
-        padding: 20px;
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-        max-width: 900px;
-        margin: 0 auto;
-        width: 100%;
-      }
-
-      /* MESSAGES */
-      .wpMsg {
-        display: flex;
-        flex-direction: column;
-        max-width: 85%;
-      }
-      .wpMsg--user { align-self: flex-end; align-items: flex-end; }
-      .wpMsg--ai { align-self: flex-start; align-items: flex-start; }
-
-      .wpBubble {
-        padding: 14px 18px;
-        border-radius: 4px;
-        line-height: 1.6;
-        font-size: 15px;
-        white-space: pre-wrap;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-      }
-
-      .wpMsg--user .wpBubble {
-        background: var(--msg-user-bg);
-        border: 1px solid var(--msg-user-border);
-        color: var(--wp-text);
-      }
-
-      .wpMsg--ai .wpBubble {
-        background: var(--msg-ai-bg);
-        border: 1px solid var(--msg-ai-border);
-        color: var(--wp-text);
-      }
-
-      .wpRoleName {
-        font-size: 11px;
-        text-transform: uppercase;
-        color: var(--wp-muted);
-        margin-bottom: 4px;
-        letter-spacing: 0.5px;
-      }
-
-      /* COMPOSER (BOTTOM FIXED) */
-      .wpComposerArea {
-        flex: 0 0 auto;
-        background: var(--wp-panel);
-        border-top: 1px solid var(--wp-border);
-        padding: 20px;
-        display: flex;
-        justify-content: center;
-      }
-
-      .wpComposerBox {
-        width: 100%;
-        max-width: 900px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-
-      .wpTextarea {
-        width: 100%;
-        min-height: 120px; /* Taller */
-        padding: 16px;
-        border: 1px solid var(--wp-border);
-        border-radius: 4px;
-        font-family: inherit;
-        font-size: 16px; /* Larger input text */
-        background: var(--wp-bg);
-        color: var(--wp-text);
-        resize: none;
-        outline: none;
-      }
-      .wpTextarea:focus {
-        border-color: var(--wp-border-focus);
-        box-shadow: 0 0 0 1px var(--wp-border-focus);
-      }
-
-      .wpControls {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .wpHelper {
-        font-size: 13px;
-        color: var(--wp-muted);
-      }
-
-      /* BUTTONS */
-      .wpBtn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 16px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        background: var(--wp-btn-bg);
-        color: var(--wp-btn-text);
-        border: 1px solid var(--wp-border);
-        border-radius: 3px;
-        transition: all 0.15s ease;
-      }
-      .wpBtn:hover:not(:disabled) {
-        border-color: var(--wp-muted);
-        background: var(--wp-bg);
-      }
-      .wpBtn:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-
-      .wpBtn.primary {
-        background: var(--wp-primary);
-        color: #fff;
-        border-color: var(--wp-primary);
-      }
-      .wpBtn.primary:hover:not(:disabled) {
-        background: var(--wp-primary-hover);
-        border-color: var(--wp-primary-hover);
-      }
-
-      .wpBtn.danger {
-        color: var(--wp-danger);
-        border-color: var(--wp-danger);
-      }
-      .wpBtn.danger:hover:not(:disabled) {
-        background: var(--wp-danger);
-        color: #fff;
-      }
-
-      /* THEME TOGGLE (Bottom Left Fixed) */
-      .wpThemeToggle {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 100;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: var(--wp-panel);
-        border: 1px solid var(--wp-border);
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: var(--wp-text);
-        font-size: 20px;
-      }
-      .wpThemeToggle:hover {
-        transform: scale(1.05);
-        border-color: var(--wp-border-focus);
-      }
-
-      /* MODAL */
-      .wpModalBackdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.6);
-        z-index: 200;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-      }
-      .wpModal {
-        background: var(--wp-panel);
-        width: 100%;
-        max-width: 600px;
-        border-radius: 4px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        display: flex;
-        flex-direction: column;
-        max-height: 90vh;
-      }
-      .wpModalHead {
-        padding: 20px;
-        border-bottom: 1px solid var(--wp-border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .wpModalTitle { font-size: 18px; font-weight: 600; }
-      .wpModalContent { padding: 20px; overflow-y: auto; }
-      .wpSection { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--wp-border); }
-      .wpSection:last-child { border: none; margin: 0; padding: 0; }
-      .wpLabel { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; }
-      
-      .wpPlanBtn {
-        width: 100%;
-        text-align: left;
-        padding: 12px;
-        border: 1px solid var(--wp-border);
-        background: var(--wp-bg);
-        margin-bottom: 8px;
-        border-radius: 4px;
-        cursor: pointer;
-      }
-      .wpPlanBtn.active {
-        border-color: var(--wp-primary);
-        background: rgba(34, 113, 177, 0.05);
-      }
-    `}</style>
-
-    {/* Top Bar */}
-    <div className="wpTopbar">
-      <div className="wpBrand">
-        <span>VOID / AI</span>
-      </div>
-      <div>
-        <span>Private & Uncensored</span>
-      </div>
-      <div className="wpMeta">
-        <div className="wpMetaItem">Session: <strong>{shortId(clientId)}</strong></div>
-        <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>
-        <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
-        <button className="wpBtn" onClick={() => setWalletOpen(true)}>Credits</button>
-      </div>
-    </div>
-
-    {/* Main Layout */}
-    <div className="wpMain">
-      
-      {/* Messages Area */}
-      <div className="wpChatContainer" ref={scrollBoxRef as any}>
-        {messages.map((m) => {
-          const isUser = m.role === "user";
-          return (
-            <div key={m.id} className={`wpMsg ${isUser ? "wpMsg--user" : "wpMsg--ai"}`}>
-              <div className="wpRoleName">{isUser ? "You" : "Assistant"}</div>
-              <div className="wpBubble">{m.text}</div>
-            </div>
-          );
-        })}
-        <div ref={bottomRef as any} />
-      </div>
-
-      {/* Composer Area (Fixed Bottom) */}
-      <div className="wpComposerArea">
-        <div className="wpComposerBox">
-          <textarea
-            className="wpTextarea"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            disabled={loading || clearing}
-            placeholder="Type your message..."
-          />
-          <div className="wpControls">
-            <div className="wpHelper">Enter to send, Shift+Enter for new line</div>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button 
-                className="wpBtn danger" 
-                onClick={() => void clearChat()} 
-                disabled={loading || clearing}
-              >
-                Clear Chat
-              </button>
-              <button 
-                className="wpBtn" 
-                onClick={() => stop()} 
-                disabled={!loading}
-              >
-                Stop
-              </button>
-              <button 
-                className="wpBtn primary" 
-                onClick={() => void send()} 
-                disabled={loading || clearing}
-              >
-                Send Message
-              </button>
-            </div>
-          </div>
+        {/* Sezione Azioni Rapide */}
+        <div style={{padding: "10px"}}>
+           <div className="wpChatItem wpGetCreditsBtn" onClick={() => setWalletOpen(true)}>
+             💎 Get Credits
+           </div>
         </div>
-      </div>
-    </div>
 
-    {/* Theme Toggle Button (Bottom Left) */}
-    <button 
-      className="wpThemeToggle" 
-      onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
-      title="Toggle Theme"
-    >
-      {theme === "light" ? "☾" : "☀"}
-    </button>
-
-    {/* Modal (Credits/Wallet) */}
-    {walletOpen && (
-      <div className="wpModalBackdrop" onMouseDown={() => setWalletOpen(false)}>
-        <div className="wpModal" onMouseDown={e => e.stopPropagation()}>
-          <div className="wpModalHead">
-            <span className="wpModalTitle">Credits & Access</span>
-            <button className="wpBtn" onClick={() => setWalletOpen(false)}>Close</button>
-          </div>
-          <div className="wpModalContent">
-            
-            <div className="wpSection">
-              <span className="wpLabel">Pro Token (Existing User)</span>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input 
-                  className="wpTextarea" 
-                  style={{ minHeight: '40px', padding: '8px 12px' }}
-                  value={tokenDraft}
-                  onChange={e => setTokenDraft(e.target.value)}
-                  placeholder="Paste token here..."
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="wpBtn primary" onClick={() => void activateToken(tokenDraft)}>Load Token</button>
-                <button className="wpBtn danger" onClick={() => {
-                   setTokenDraft("");
-                   void activateToken("");
-                   setUiMsg("Token removed.");
-                }}>Unlink</button>
-              </div>
-              {uiMsg && <div style={{ fontSize: 13, marginTop: 8, color: 'var(--wp-primary)' }}>{uiMsg}</div>}
-            </div>
-
-            <div className="wpSection">
-              <span className="wpLabel">Purchase Credits (BTC)</span>
-              {PLANS.map(p => (
-                <div 
-                  key={p.id} 
-                  className={`wpPlanBtn ${planId === p.id ? 'active' : ''}`}
-                  onClick={() => setPlanId(p.id)}
-                >
-                  <div style={{ fontWeight: 600 }}>{p.title} - ${p.priceUsd}</div>
-                  <div style={{ fontSize: 13, color: 'var(--wp-muted)' }}>{p.credits.toLocaleString()} credits {p.note && `(${p.note})`}</div>
-                </div>
-              ))}
+        <div className="wpChatList">
+          {!chatId && (
+            <div className="wpChatItem active">New Chat</div>
+          )}
+          
+          {chatList.map((chat) => (
+            <div 
+              key={chat.id} 
+              className={`wpChatItem ${chatId === chat.id ? 'active' : ''}`}
+              onClick={() => void loadChat(chat.id)}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{chat.title}</span>
               
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button 
-                  className="wpBtn primary" 
-                  onClick={() => void createInvoice()}
-                  disabled={billingState === "creating"}
-                >
-                  Create Invoice
-                </button>
-                <button 
-                  className="wpBtn" 
-                  onClick={() => void claimTokenOnce(invoiceId)}
-                  disabled={!invoiceId}
-                >
-                  Check Payment
-                </button>
-              </div>
-
-              {invoiceId && (
-                <div style={{ marginTop: 12, padding: 12, background: 'var(--wp-bg)', borderRadius: 4, fontSize: 13 }}>
-                  <div><strong>Invoice ID:</strong> {shortId(invoiceId)}</div>
-                  {checkoutLink && (
-                    <div style={{ marginTop: 4 }}>
-                      <a href={checkoutLink} target="_blank" rel="noreferrer" style={{ color: 'var(--wp-primary)' }}>Open Payment Link ↗</a>
-                    </div>
-                  )}
-                  {billingMsg && <div style={{ marginTop: 8, color: 'var(--wp-muted)', fontStyle: 'italic' }}>{billingMsg}</div>}
-                </div>
-              )}
+              {/* RIMOSSO 'style={{ display: "none" }}' QUI SOPRA */}
+              <button 
+                onClick={(e) => void deleteChat(chat.id, e)}
+                className="delete-btn"
+                title="Delete chat"
+              >
+                🗑
+              </button>
             </div>
+          ))}
+        </div>
 
+        {/* Theme Toggle in fondo alla sidebar */}
+        <div className="wpThemeToggleInSidebar">
+          <div className="wpThemeCircle" onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}>
+            <span style={{fontSize: "18px"}}>{theme === "light" ? "🌙 Dark Mode" : "☀ Light Mode"}</span>
           </div>
         </div>
       </div>
-    )}
-  </div>
-);
 
+      {/* --- WRAPPER PER CONTENUTO PRINCIPALE --- */}
+      <div className="wpContentWrapper">
+        
+        {/* Top Bar */}
+        <div className="wpTopbar">
+          <div style={{fontSize: "0.9rem", color: "var(--wp-muted)"}}>Private & Uncensored</div>
+          <div className="wpMeta">
+            <div className="wpMetaItem">Session: <strong>{shortId(clientId)}</strong></div>
+            
+            {/* Mostra Free Credits SOLO se non c'è Token Pro */}
+            {!proToken && (
+              <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>
+            )}
+            
+            <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
+            {/* RIMOSSO IL PULSANTE CREDITS QUI, ORA È NELLA SIDEBAR */}
+          </div>
+        </div>
+
+        {/* Main Layout */}
+        <div className="wpMain">
+          
+          {/* Messages Area */}
+          <div className="wpChatContainer" ref={scrollBoxRef as any}>
+                        {messages.map((m, index) => {
+              const isUser = m.role === "user";
+              const isLastMessage = index === messages.length - 1;
+              
+              // Controllo se siamo nella schermata iniziale (solo benvenuto)
+              // Se c'è solo 1 messaggio ed è l'AI, non mostrare Regenerate
+              const isWelcomeScreen = messages.length === 1 && !isUser;
+              
+              return (
+                <div key={m.id} className={`wpMsg ${isUser ? "wpMsg--user" : "wpMsg--ai"}`}>
+                  <div className="wpRoleName">{isUser ? "You" : "Assistant"}</div>
+                  
+                  <div className="wpBubble">
+                    {m.text}
+                    
+                    {/* Status Thinking/Stopped */}
+                    {m.interrupted && (
+                      <span className="msgStatus stopped">Stopped.</span>
+                    )}
+                    {!m.interrupted && m.text === "" && status === "thinking" && isLastMessage && (
+                      <span className="msgStatus thinking">Thinking...</span>
+                    )}
+                  </div>
+
+                  {/* --- AZIONI --- */}
+                  <div className="wpMsgActions" style={isUser ? { justifyContent: 'flex-end' } : { justifyContent: 'flex-start' }}>
+                    
+                    {/* SOLO UTENTE: Copy */}
+                    {isUser && (
+                      <button className="wpActionBtn" onClick={() => void copyToClipboard(m.text)}>Copy</button>
+                    )}
+
+                    {/* SOLO AI: Regenerate (se non è benvenuto) + Copy */}
+                    {!isUser && (
+                      <>
+                        {/* Regenerate: solo se è l'ultimo messaggio, non è benvenuto, E non è un errore/limite */}
+                        {isLastMessage && !isWelcomeScreen && !m.text.toLowerCase().includes("limit") && !m.text.toLowerCase().includes("error") && !m.text.toLowerCase().includes("too many requests") && (
+                          <button className="wpActionBtn" onClick={() => void handleRegenerate()}>Regenerate</button>
+                        )}
+                        
+                        <button className="wpActionBtn" onClick={() => void copyToClipboard(m.text)}>Copy</button>
+                      </>
+                    )}
+
+                  </div>
+
+                </div>
+              );
+            })}
+            <div ref={bottomRef as any} />
+          </div>
+
+          {/* Composer Area */}
+          <div className="wpComposerArea">
+            <div className="wpComposerBox">
+              <textarea
+                className="wpTextarea"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+                disabled={loading || clearing}
+                placeholder="Type your message..."
+              />
+              <div className="wpControls">
+                <div className="wpHelper">Enter to send, Shift+Enter for new line</div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button 
+                    className="wpBtn danger" 
+                    onClick={() => void clearChat()} 
+                    disabled={loading || clearing}
+                  >
+                    Clear Chat
+                  </button>
+                  <button 
+                    className="wpBtn" 
+                    onClick={() => stop()} 
+                    disabled={!loading}
+                  >
+                    Stop
+                  </button>
+                  <button 
+                    className="wpBtn primary" 
+                    onClick={() => void send()} 
+                    disabled={loading || clearing}
+                  >
+                    Send Message
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div> {/* Fine wpContentWrapper */}
+
+      {/* Modal */}
+      {walletOpen && (
+        <div className="wpModalBackdrop" onMouseDown={() => setWalletOpen(false)}>
+          <div className="wpModal" onMouseDown={e => e.stopPropagation()}>
+            <div className="wpModalHead">
+              <span className="wpModalTitle">Wallet & Access</span>
+              <button className="wpBtn" onClick={() => setWalletOpen(false)}>Close</button>
+            </div>
+            <div className="wpModalContent">
+              
+              {/* Sezione 1: Token Esistente */}
+              <div className="wpSection">
+                <span className="wpLabel">Existing Token</span>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input 
+                    className="wpTextarea" 
+                    style={{ minHeight: '40px', padding: '8px 12px' }}
+                    value={tokenDraft}
+                    onChange={e => setTokenDraft(e.target.value)}
+                    placeholder="Paste token here..."
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="wpBtn primary" onClick={() => void activateToken(tokenDraft)}>Load Token</button>
+                  <button className="wpBtn danger" onClick={() => {
+                     setTokenDraft("");
+                     void activateToken("");
+                     setUiMsg("Token removed.");
+                  }}>Unlink</button>
+                </div>
+                {uiMsg && <div style={{ fontSize: 13, marginTop: 8, color: 'var(--wp-primary)' }}>{uiMsg}</div>}
+              </div>
+
+              {/* Sezione 2: Acquisto (ORIZZONTALE + TOGGLE MONERO) */}
+              <div className="wpSection">
+                <span className="wpLabel">Purchase Credits</span>
+                
+                {/* Toggle BTC / XMR */}
+                <div className="wpPaymentToggle">
+                  <div 
+                    className={`wpPaymentOption ${paymentMethod === 'btc' ? 'active' : ''}`}
+                    onClick={() => setPaymentMethod('btc')}
+                  >
+                    Bitcoin (BTC)
+                  </div>
+                  <div 
+                    className={`wpPaymentOption ${paymentMethod === 'xmr' ? 'active' : ''}`}
+                    onClick={() => setPaymentMethod('xmr')}
+                  >
+                    Monero (XMR)
+                  </div>
+                </div>
+
+                {/* Piani in Orizzontale */}
+                <div className="wpPlansRow">
+                  {PLANS.map(p => (
+                    <div 
+                      key={p.id} 
+                      className={`wpPlanBtn ${planId === p.id ? 'active' : ''}`}
+                      onClick={() => setPlanId(p.id)}
+                    >
+                      <div className="wpPlanPrice">${p.priceUsd}</div>
+                      <div style={{fontWeight: 600}}>{p.title}</div>
+                      <div className="wpPlanCredits">{p.credits.toLocaleString()} credits</div>
+                      {p.note && <div style={{fontSize: 11, marginTop: 4, opacity: 0.7}}>{p.note}</div>}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Pulsanti Azione */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+                  {paymentMethod === 'btc' ? (
+                    <button 
+                      className="wpBtn primary" 
+                      onClick={() => void createInvoice()}
+                      disabled={billingState === "creating"}
+                      style={{minWidth: "150px"}}
+                    >
+                      {billingState === "creating" ? "Creating..." : "Pay with BTC"}
+                    </button>
+                  ) : (
+                    // Placeholder per Monero
+                    <button className="wpBtn primary" disabled style={{minWidth: "150px"}}>
+                      Pay with XMR (Soon)
+                    </button>
+                  )}
+                </div>
+
+                {/* Stato Invoice (visibile solo per BTC per ora) */}
+                {invoiceId && paymentMethod === 'btc' && (
+                  <div style={{ marginTop: 20, padding: 12, background: 'var(--wp-bg)', borderRadius: 8, fontSize: 13 }}>
+                    <div><strong>Invoice ID:</strong> {shortId(invoiceId)}</div>
+                    {checkoutLink && (
+                      <div style={{ marginTop: 4 }}>
+                        <a href={checkoutLink} target="_blank" rel="noreferrer" style={{ color: 'var(--wp-primary)' }}>Open Payment Link ↗</a>
+                      </div>
+                    )}
+                    {billingMsg && <div style={{ marginTop: 8, color: 'var(--wp-muted)', fontStyle: 'italic' }}>{billingMsg}</div>}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
