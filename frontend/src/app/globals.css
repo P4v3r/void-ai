@@ -94,6 +94,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 .wpChatList {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -110,13 +111,21 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   justify-content: space-between;
   align-items: center;
   transition: background 0.2s;
-  position: relative;
+  position: relative; /* Per posizionare il menu */
+}
+
+.chatTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
 }
 .wpChatItem:hover { background: rgba(0,0,0,0.05); }
 .wpShell.dark .wpChatItem:hover { background: rgba(255,255,255,0.05); }
 .wpChatItem.active { background: var(--wp-primary); color: #fff; }
 .wpShell.dark .wpChatItem.active { background: var(--wp-primary); color: #fff; }
-.chatTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px; }
+.wpChatItem.active .moreBtn { color: #ffffff !important; }
 
 .wpThemeToggleInSidebar {
   margin-top: auto;
@@ -440,7 +449,13 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   gap: 4px;
 }
 .wpPlanBtn:hover { border-color: var(--wp-muted); }
-.wpPlanBtn.active { border-color: var(--wp-primary); background: var(--wp-primary-bg); box-shadow: 0 0 0 1px var(--wp-primary); }
+.wpPlanBtn.active {
+  /* border-color: var(--wp-primary); <--- RIMOSSO */
+  background: rgba(59, 130, 246, 0.15); /* Sfondo un po' più visibile */
+  /* box-shadow: 0 0 0 1px var(--wp-primary); <--- RIMOSSO */
+  color: var(--wp-primary);
+  font-weight: 700;
+}
 .wpPlanPrice { font-size: 18px; font-weight: 700; color: var(--wp-text); }
 .wpPlanTitle { font-weight: 600; }
 .wpPlanCredits { font-size: 12px; color: var(--wp-muted); }
@@ -465,17 +480,33 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 ::-webkit-scrollbar-thumb:hover { background: var(--wp-muted); }
 
 /* --- EXTRAS --- */
+/* --- CORREZIONE CESTINO --- */
 .delete-btn {
-  display: none;
-  opacity: 0.6;
+  display: none !important; /* Nascosto di default */
+  /* color: inherit; <-- Questo a volte non basta con le icone SVG */
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  transition: opacity 0.2s;
+  padding: 2px 6px;
+  transition: opacity 0.2s, color 0.2s;
+  
+  /* FIX FORZATO */
+  color: var(--wp-text); 
 }
-.wpChatItem:hover .delete-btn { display: block; }
-.delete-btn:hover { opacity: 1; color: var(--wp-danger); }
+
+/* Appare al hover */
+.wpChatItem:hover .delete-btn {
+  display: block !important;
+}
+
+.wpChatItem .delete-btn:hover {
+  opacity: 1;
+  color: var(--wp-danger);
+}
+
+.delete-btn svg {
+  stroke: currentColor; 
+}
 
 .wpGetCreditsBtn {
   background: var(--wp-primary-bg);
@@ -523,4 +554,113 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   .wpBtn span { display: none; } /* Nascondi testo bottoni secondari se serve, o lascia stare */
   .wpBtn.primary span { display: inline; }
   .wpBtn.danger span { display: inline; }
+}
+
+.wpThemeToggleInModal {
+  display: flex;
+  gap: 10px;
+  background: var(--wp-bg);
+  padding: 4px;
+  border-radius: 8px;
+}
+.wpThemeOption {
+  flex: 1;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--wp-muted);
+  font-weight: 500;
+}
+.wpThemeOption.active {
+  background: var(--wp-panel);
+  color: var(--wp-primary);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+/* --- INFO BUTTON IN SIDEBAR --- */
+.wpInfoBtnContainer {
+  padding: 10px 20px;
+  margin-top: auto; /* Lo mette in fondo */
+  border-top: 1px solid var(--sidebar-border);
+}
+.wpBtnIconFull {
+  width: 100%;
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  border: 1px solid var(--wp-border);
+  justify-content: flex-start;
+  border-radius: 6px;
+  padding: 10px;
+}
+.wpBtnIconFull:hover { background: var(--wp-border); }
+
+/* --- CHAT MENU (MORE) --- */
+.chatMenuContainer {
+  position: relative;
+}
+.moreBtn {
+  background: transparent;
+  border: none;
+  color: var(--wp-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.wpChatItem:hover .moreBtn { opacity: 1; }
+.moreBtn:hover { color: var(--wp-text); background: rgba(0,0,0,0.05); }
+
+.chatMenu {
+  position: absolute;
+  right: 100%;       
+  top: 0;
+  margin-left: 8px;
+  width: 200px;
+  background: var(--wp-panel); /* Assicura sfondo pieno */
+  border: 1px solid var(--wp-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  padding: 4px;
+  z-index: 9999;    /* <--- CAMBIATO: Assicura che sia sopra tutto */
+  display: flex;
+  flex-direction: column;
+}
+
+.chatMenuItem {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--wp-text);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.chatMenuItem:hover { background: var(--wp-bg); color: var(--wp-primary); }
+.chatMenuItem.disabled { 
+  color: var(--wp-muted); 
+  cursor: not-allowed; 
+  opacity: 0.6; 
+}
+.chatMenuItem.danger:hover { background: rgba(239, 68, 68, 0.1); color: var(--wp-danger); }
+.chatMenuDivider {
+  height: 1px;
+  background: var(--wp-border);
+  margin: 4px 0;
+}
+
+/* PINNED ITEM STYLE */
+.wpChatItem.pinned .chatTitle {
+  font-weight: 600;
+  color: var(--wp-text);
+}
+.pinIcon {
+  color: var(--wp-primary);
+  margin-right: 6px;
+  flex-shrink: 0;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Copy, RotateCcw, Trash2, Plus, Menu, Sun, Moon, CheckCircle, AlertCircle, FileEdit, Coins } from "lucide-react";
+import { Copy, RotateCcw, Trash2, Plus, Menu, Sun, Moon, CheckCircle, AlertCircle, FileEdit, Coins,  Settings, Download, Upload, FileText, MoreHorizontal, Info, Pin, Pencil, DownloadCloud, File as FileIcon} from "lucide-react";
+
 const STORAGE_KEY_CHATS = "void_chat_history";
 
 type Role = "user" | "ai";
@@ -75,10 +76,10 @@ async function copyToClipboard(text: string) {
 }
 
 export default function Page() {
-  const API_BASE = useMemo(() => {
-    const base = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
-    return normalizeBase(base);
-  }, []);
+  // Definiamo l'URL di default
+  const DEFAULT_API = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
+  // Lo rendiamo uno stato modificabile
+  const [apiUrl, setApiUrl] = useState<string>(DEFAULT_API);
 
   // --- STATE ---
   // Identity / limits
@@ -129,6 +130,28 @@ export default function Page() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef<boolean>(true);
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+  const [infoOpen, setInfoOpen] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  type ChatMeta = { id: string; title: string; updatedAt: number; pinned?: boolean; };
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      // Chiudi il menu se clicchi fuori da qualsiasi cosa che non sia un pulsante "more"
+      const target = e.target as HTMLElement;
+      if (!target.closest('.chatMenuContainer')) {
+        setActiveMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
   // Effects Refs Sync
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
@@ -169,7 +192,6 @@ export default function Page() {
 
   const clearChat = useCallback(async () => {
     if (clearing) return;
-    if (!confirm("Are you sure you want to delete this conversation?")) return;
     
     stop();
     setClearing(true);
@@ -251,6 +273,101 @@ export default function Page() {
     localStorage.removeItem(`void_chat_${id}`);
   }, [chatId, clearChat]);
 
+  // --- CHAT ACTIONS ---
+
+const togglePin = useCallback((id: string) => {
+  setChatList(prev => {
+    const list = prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c);
+    // Ordina: Pinnati prima, poi per data
+    list.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+    localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(list));
+    return list;
+  });
+  setActiveMenuId(null);
+}, []);
+
+const renameChat = useCallback((id: string, currentTitle: string) => {
+  const newName = prompt("New chat name:", currentTitle);
+  if (newName && newName.trim() !== "") {
+    setChatList(prev => {
+      const list = prev.map(c => c.id === id ? { ...c, title: newName.trim() } : c);
+      localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(list));
+      return list;
+    });
+  }
+  setActiveMenuId(null);
+}, []);
+
+const duplicateChat = useCallback((id: string) => {
+  const msgs = localStorage.getItem(`void_chat_${id}`);
+  if (!msgs) return;
+  const newId = crypto.randomUUID();
+  const chatToDupe = chatList.find(c => c.id === id);
+  
+  if (chatToDupe) {
+    const newChat: ChatMeta = {
+      id: newId,
+      title: chatToDupe.title + " (Copy)",
+      updatedAt: Date.now(),
+      pinned: false // I duplicati non sono pinnati di solito
+    };
+    
+    // Salva messaggi
+    localStorage.setItem(`void_chat_${newId}`, msgs);
+    
+    // Aggiorna lista
+    setChatList(prev => {
+      const list = [newChat, ...prev];
+      localStorage.setItem(STORAGE_KEY_CHATS, JSON.stringify(list));
+      return list;
+    });
+  }
+  setActiveMenuId(null);
+}, [chatList]);
+
+const downloadChat = useCallback((id: string, format: 'json' | 'txt') => {
+  const chat = chatList.find(c => c.id === id);
+  const msgsRaw = localStorage.getItem(`void_chat_${id}`);
+  if (!chat || !msgsRaw) return;
+
+  const msgs: Msg[] = JSON.parse(msgsRaw);
+  let content = "";
+  let mime = "text/plain";
+  let ext = ".txt";
+
+  if (format === 'json') {
+    content = JSON.stringify({ meta: chat, messages: msgs }, null, 2);
+    mime = "application/json";
+    ext = ".json";
+  } else {
+    // TXT simple format
+    content = `Chat: ${chat.title}\nDate: ${new Date(chat.updatedAt).toLocaleString()}\n\n`;
+    msgs.forEach(m => {
+      content += `[${m.role.toUpperCase()}]: ${m.text}\n\n`;
+    });
+  }
+
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${chat.title.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}${ext}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setActiveMenuId(null);
+}, [chatList]);
+
+const clearAllData = useCallback(() => {
+  if (confirm("WARNING: This will delete all chats, and cache locally. Are you sure?")) {
+    localStorage.clear();
+    window.location.reload(); // Ricarica la pagina pulita
+  }
+}, []);
+  
   // --- SCROLL EFFECTS ---
   useEffect(() => {
     const el = scrollBoxRef.current;
@@ -385,7 +502,7 @@ export default function Page() {
     if (!t) { setProStatus("off"); setProLeft(null); return; }
 
     try {
-      const res = await fetch(`${API_BASE}/pro/status`, {
+      const res = await fetch(`${apiUrl}/pro/status`, {
         method: "GET",
         headers: { "x-void-pro-token": t },
       });
@@ -405,7 +522,7 @@ export default function Page() {
       if (left === null) setProStatus("active");
       else setProStatus(left > 0 ? "active" : "exhausted");
     } catch { setProStatus("invalid"); setProLeft(null); }
-  }, [proToken, API_BASE]);
+  }, [proToken, apiUrl]);
 
   const clearInvoiceState = useCallback(() => {
     setInvoiceId("");
@@ -421,7 +538,7 @@ export default function Page() {
     setBillingState("creating");
 
     try {
-      const res = await fetch(`${API_BASE}/pro/create-invoice`, {
+      const res = await fetch(`${apiUrl}/pro/create-invoice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: String(plan.priceUsd), currency: "USD", credits: plan.credits }),
@@ -438,11 +555,11 @@ export default function Page() {
       setBillingMsg("Invoice created. Waiting for payment confirmation…");
       if (link) window.open(link, "_blank", "noopener,noreferrer");
     } catch { setBillingState("error"); setBillingMsg("Create invoice failed (network error)."); }
-  }, [planId, API_BASE]);
+  }, [planId, apiUrl]);
 
   const claimTokenOnce = useCallback(async (inv: string): Promise<"paid" | "pending" | "already_claimed" | "error"> => {
     try {
-      const res = await fetch(`${API_BASE}/pro/claim`, {
+      const res = await fetch(`${apiUrl}/pro/claim`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ invoiceId: inv }),
@@ -466,7 +583,7 @@ export default function Page() {
       clearInvoiceState();
       return "paid";
     } catch { return "error"; }
-  }, [API_BASE, refreshProStatus, clearInvoiceState]);
+  }, [apiUrl, refreshProStatus, clearInvoiceState]);
 
   // Auto-claim polling
   useEffect(() => {
@@ -488,7 +605,7 @@ export default function Page() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 500);
-      const res = await fetch(`${API_BASE}/chat/stream`, {
+      const res = await fetch(`${apiUrl}/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -505,7 +622,7 @@ export default function Page() {
         if (Number.isFinite(n)) { setFreeLeft(n); writeLS(LS.freeLeft, String(n)); }
       }
     } catch (e) { /* Ignore timeout */ }
-  }, [API_BASE, clientId]);
+  }, [apiUrl, clientId]);
 
   const send = useCallback(async () => {
     const text = input.trim();
@@ -547,7 +664,7 @@ export default function Page() {
     abortRef.current = controller;
 
     try {
-      const res = await fetch(`${API_BASE}/chat/stream`, {
+      const res = await fetch(`${apiUrl}/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -607,7 +724,7 @@ export default function Page() {
     } finally {
       if (genIdRef.current === myGenId) { setLoading(false); cleanupStreamRefs(); }
     }
-  }, [input, loading, clearing, freeLeft, proToken, chatId, API_BASE, clientId, createNewChat, cleanupStreamRefs]);
+  }, [input, loading, clearing, freeLeft, proToken, chatId, apiUrl, clientId, createNewChat, cleanupStreamRefs]);
 
   const handleRegenerate = useCallback(async () => {
     const lastMsg = messages[messages.length - 1];
@@ -639,12 +756,94 @@ export default function Page() {
     return "Pro: Off";
   }
 
+  // --- EXPORT CHATS ---
+const handleExportChats = () => {
+  try {
+    const historyRaw = localStorage.getItem("void_chat_history");
+    if (!historyRaw) {
+      alert("No chat to export.");
+      return;
+    }
+    const history: ChatMeta[] = JSON.parse(historyRaw);
+    
+    // Costruiamo un oggetto completo con meta + messaggi
+    const fullBackup = history.map(meta => {
+      const msgs = JSON.parse(localStorage.getItem(`void_chat_${meta.id}`) || "[]");
+      return { meta, messages: msgs };
+    });
+
+    // Creiamo il file JSON
+    const dataStr = JSON.stringify(fullBackup, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    
+    // Trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `void_backup_${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert("Backup downloaded successfully!");
+  } catch (e) {
+    console.error(e);
+    alert("Error during export.");
+  }
+};
+
+// --- IMPORT CHATS ---
+const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const json = JSON.parse(event.target?.result as string);
+      if (!Array.isArray(json)) throw new Error("Formato non valido");
+
+      // Prendiamo la cronologia esistente
+      const existingRaw = localStorage.getItem("void_chat_history");
+      const existing: ChatMeta[] = existingRaw ? JSON.parse(existingRaw) : [];
+      
+      // Creiamo un Set degli ID esistenti per evitare duplicati
+      const existingIds = new Set(existing.map(c => c.id));
+
+      let importedCount = 0;
+
+      // Loop sul backup
+      json.forEach((item: any) => {
+        if (item.meta && item.meta.id && item.messages) {
+          // Se l'ID non esiste già, lo aggiungiamo
+          if (!existingIds.has(item.meta.id)) {
+            existing.push(item.meta);
+            localStorage.setItem(`void_chat_${item.meta.id}`, JSON.stringify(item.messages));
+            importedCount++;
+          }
+        }
+      });
+
+      // Aggiorniamo la lista principale
+      localStorage.setItem("void_chat_history", JSON.stringify(existing));
+      loadChatList(); // Ricarica la UI
+      setSettingsOpen(false); // Chiudiamo il popup
+      
+      alert(`Import ${importedCount} chats successfully!`);
+    } catch (e) {
+      console.error(e);
+      alert("Error during import. Check the file format.");
+    }
+  };
+  reader.readAsText(file);
+};
+
   return (
     <div className={`wpShell ${theme}`}>
       {/* --- SIDEBAR (DESTRA) --- */}
       <div className={`wpSidebar ${mobileSidebarOpen ? 'isOpen' : ''}`}>
         <div className="wpSidebarHeader">
-          <span>Void/AI _beta V2.0</span>
+          <span>Void/AI _beta V2.1</span>
           <button className="wpBtn wpBtnIcon" onClick={() => void startNewChat()} aria-label="New Chat"title="New Chat">
             <FileEdit size={ 18} />
           </button>
@@ -658,21 +857,75 @@ export default function Page() {
         </div>
 
         <div className="wpChatList">
-          {!chatId && <div className="wpChatItem active">New Chat</div>}
+          {!chatId && (
+            <div className="wpChatItem active">New Chat</div>
+          )}
+          
           {chatList.map((chat) => (
-            <div key={chat.id} className={`wpChatItem ${chatId === chat.id ? 'active' : ''}`} onClick={() => void loadChat(chat.id)}>
+            <div 
+              key={chat.id} 
+              className={`wpChatItem ${chatId === chat.id ? 'active' : ''} ${chat.pinned ? 'pinned' : ''}`}
+              onClick={() => void loadChat(chat.id)}
+            >
+              {/* Pin Icon (visibile solo se pinnato) */}
+              {chat.pinned && <Pin size={12} className="pinIcon" fill="currentColor" />}
+              
               <span className="chatTitle">{chat.title}</span>
-              <button className="delete-btn" onClick={(e) => void deleteChat(chat.id, e)} title="Delete chat">
-                <Trash2 size={14} />
-              </button>
+              
+              {/* --- BOTTONE MORE (3 PUNTINI) --- */}
+              <div className="chatMenuContainer">
+                <button 
+                  className="moreBtn" 
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita di aprire la chat
+                    setActiveMenuId(activeMenuId === chat.id ? null : chat.id);
+                  }}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+
+                {/* --- DROPDOWN MENU --- */}
+                {activeMenuId === chat.id && (
+                  <div className="chatMenu" onClick={e => e.stopPropagation()}>
+                    <div className="chatMenuItem" onClick={() => togglePin(chat.id)}>
+                      <Pin size={14} style={{marginRight: 8}} /> {chat.pinned ? "Unpin" : "Pin"}
+                    </div>
+                    <div className="chatMenuItem" onClick={() => renameChat(chat.id, chat.title)}>
+                      <Pencil size={14} style={{marginRight: 8}} /> Rename
+                    </div>
+                    <div className="chatMenuItem" onClick={() => duplicateChat(chat.id)}>
+                      <Copy size={14} style={{marginRight: 8}} /> Duplicate
+                    </div>
+                    
+                    {/* Download Submenu (Semplificato qui) */}
+                    <div className="chatMenuDivider"></div>
+                    <div className="chatMenuItem" onClick={() => downloadChat(chat.id, 'json')}>
+                      <FileIcon size={14} style={{marginRight: 8}} /> Export chat (.json)
+                    </div>
+                    <div className="chatMenuItem" onClick={() => downloadChat(chat.id, 'txt')}>
+                      <FileText size={14} style={{marginRight: 8}} /> Plain Text (.txt)
+                    </div>
+                    {/* Placeholder PDF */}
+                    <div className="chatMenuItem disabled" title="Coming soon">
+                      <DownloadCloud size={14} style={{marginRight: 8}} /> PDF document (.pdf)
+                    </div>
+
+                    <div className="chatMenuDivider"></div>
+                    <div className="chatMenuItem danger" onClick={(e) => void deleteChat(chat.id, e)}>
+                      <Trash2 size={14} style={{marginRight: 8}} /> Delete
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
 
+       {/* --- SIDEBAR BOTTOM: SETTINGS --- */}
         <div className="wpThemeToggleInSidebar">
-          <div className="wpThemeCircle" onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}>
-            {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-            <span className="themeText">{theme === "light" ? "Dark" : "Light"}</span>
+          <div className="wpThemeCircle" onClick={() => setSettingsOpen(true)}>
+            <Settings size={18} />
+            <span style={{marginLeft: 8}}>Settings</span>
           </div>
         </div>
       </div>
@@ -686,11 +939,17 @@ export default function Page() {
         {/* Top Bar */}
         <div className="wpTopbar">
           <div className="mobileMenuBtn" onClick={() => setMobileSidebarOpen(true)}>☰</div>
-          <div className="wpBrand">Private & Uncensored</div>
+            <div className="wpBrand">Private & Uncensored</div>
           <div className="wpMeta">
+            
             <div className="wpMetaItem">ID: <strong>{shortId(clientId)}</strong></div>
             {!proToken && <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>}
             <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
+  
+            {/* --- TASTO INFO (IN ALTO A DESTRA) --- */}
+            <button className="wpBtn wpBtnIcon" onClick={() => setInfoOpen(true)} title="Info / About">
+              <Info size={18} />
+            </button>
           </div>
         </div>
 
@@ -741,7 +1000,7 @@ export default function Page() {
                           <>
                             {/* Regenerate: solo se è l'ultimo messaggio, non è benvenuto, non è errore */}
                             {isLastMessage && !isWelcomeScreen && !m.text.toLowerCase().includes("limit") && !m.text.toLowerCase().includes("error") && !m.text.toLowerCase().includes("too many requests") && (
-                              <button className="wpActionBtn" onClick={() => void handleRegenerate()} title="Regenerate">
+                              <button className="wpActionBtn" onClick={() => void handleRegenerate()} title="Regenerate / Modify Prompt">
                                 <RotateCcw size={16} />
                               </button>
                             )}
@@ -846,6 +1105,165 @@ export default function Page() {
           </div>
         </div>
       )}
+
+     {/* --- SETTINGS MODAL --- */}
+    {settingsOpen && (
+      <div className="wpModalBackdrop" onMouseDown={() => setSettingsOpen(false)}>
+        <div className="wpModal" onMouseDown={e => e.stopPropagation()}>
+          <div className="wpModalHead">
+            <span className="wpModalTitle">Settings</span>
+            <button className="wpBtn" onClick={() => setSettingsOpen(false)}>Close</button>
+          </div>
+          <div className="wpModalContent">
+  
+          {/* --- 1. TEMA --- */}
+          <div className="wpSection">
+            <span className="wpLabel">Appearance</span>
+            <div className="wpThemeToggleInModal">
+              <div 
+                className={`wpThemeOption ${theme === 'light' ? 'active' : ''}`}
+                onClick={() => setTheme('light')}
+              >
+                <Sun size={16} style={{marginRight:8}} /> Light Mode
+              </div>
+              <div 
+                className={`wpThemeOption ${theme === 'dark' ? 'active' : ''}`}
+                onClick={() => setTheme('dark')}
+              >
+                <Moon size={16} style={{marginRight:8}} /> Dark Mode
+              </div>
+            </div>
+          </div>
+
+          {/* --- 2. GESTIONE DATI --- */}
+          <div className="wpSection">
+            <span className="wpLabel">Data Management</span>
+             <p style={{fontSize: '13px', color: 'var(--wp-muted)', marginBottom: '12px'}}>
+              Save your chats locally. You can restore them later if you clear your browser cache.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <button className="wpBtn primary" onClick={handleExportChats} style={{flex: 1}}>
+                <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                  <Download size={16} /> Export Chats
+                </span>
+              </button>
+              <input 
+                  type="file" 
+                  ref={fileInputRef}  // <--- USA REF INVECE DI ID
+                  style={{display: 'none'}} 
+                  accept=".json"
+                  onChange={handleImportChats}
+                />
+              <button 
+                className="wpBtn" 
+                onClick={() => fileInputRef.current?.click()} // <--- USA IL REF PER APRIRE
+                style={{flex: 1}}
+              >
+                <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                  <Upload size={16} /> Import Chats
+                </span>
+              </button>
+            </div>
+
+            <button className="wpBtn danger" style={{width: '100%', marginTop: 10}} onClick={clearAllData}>
+              <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                <Trash2 size={16} /> Clear All Data
+              </span>
+            </button>
+          </div>
+
+          {/* --- 3. API OVERRIDE --- */}
+          <div className="wpSection">
+            <span className="wpLabel">Backend Server</span>
+            <p style={{fontSize: '12px', color: 'var(--wp-muted)', marginBottom: '10px'}}>
+              Change API URL to use a local or custom instance.
+            </p>
+            
+            <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
+              <input 
+                className="wpInput" 
+                // TRUCCO: Se è uguale a DEFAULT, lascia il value vuoto (così mostra il placeholder)
+                // Se è diverso (custom), mostra il valore reale
+                value={apiUrl === DEFAULT_API ? "" : apiUrl}
+                onChange={(e) => setApiUrl(e.target.value)}
+                placeholder={DEFAULT_API}
+                style={{
+                  width: '100%',
+                  fontWeight: apiUrl === DEFAULT_API ? '400' : '600'
+                }}
+              />
+            </div>
+
+            <div style={{display: 'flex', gap: 8}}>
+              {/* Questo bottone è opzionale visto che l'aggiornamento è automatico, ma lo lascio come conferma */}
+              <button 
+                className="wpBtn primary" 
+                onClick={() => {
+                  // Qui potresti fare un ping test, ma ora non serve
+                }}
+                style={{flex: 1}}
+              >
+                Set URL
+              </button>
+              <button 
+                className="wpBtn" 
+                onClick={() => setApiUrl(DEFAULT_API)}
+                title="Restore default"
+                style={{flex: '0 0 auto'}}
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+          </div>
+
+        </div>
+        </div>
+      </div>
+    )}
+
+    {/* --- INFO / ABOUT MODAL --- */}
+    {infoOpen && (
+      <div className="wpModalBackdrop" onMouseDown={() => setInfoOpen(false)}>
+        <div className="wpModal" onMouseDown={e => e.stopPropagation()}>
+          <div className="wpModalHead">
+            <span className="wpModalTitle">About & Info</span>
+            <button className="wpBtn" onClick={() => setInfoOpen(false)}>Close</button>
+          </div>
+          <div className="wpModalContent">
+            
+            <div style={{textAlign: 'center', marginBottom: 20}}>
+              <h2 style={{margin: 0, fontSize: 24}}>VOID/AI _beta V2.1</h2>
+              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>Uncensored & Private Assistant</p>
+            </div>
+
+            <div className="wpSection">
+              <span className="wpLabel">Useful Links</span>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                {/* GitHub */}
+                <a href="https://github.com/P4v3r/void-ai" target="_blank" rel="noreferrer" className="wpBtn" style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}>
+                  <span style={{fontSize: 18, marginRight: 8}}>⭐</span> GitHub Repository
+                </a>
+
+                {/* FAQ */}
+                <a href="#" onClick={() => alert("FAQ coming soon!")} className="wpBtn" style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}>
+                  <span style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                    <FileText size={16} /> FAQ
+                  </span>
+                </a>
+
+                {/* Terms */}
+                <a href="#" onClick={() => alert("Terms coming soon!")} className="wpBtn" style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}>
+                  <span style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                    <CheckCircle size={16} /> Terms & Privacy
+                  </span>
+                </a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
