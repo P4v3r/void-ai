@@ -29,9 +29,9 @@ type Plan = {
 };
 
 const PLANS: Plan[] = [
-  { id: "starter", title: "Starter", credits: 1_000, priceUsd: 1, note: "Quick test." },
-  { id: "plus", title: "Plus", credits: 5_000, priceUsd: 4, note: "Most picked." },
-  { id: "max", title: "Max", credits: 15_000, priceUsd: 10, note: "Heavy usage." },
+  { id: "starter", title: "Starter", credits: 500, priceUsd: 2, note: "Quick test." },
+  { id: "plus", title: "Plus", credits: 5_000, priceUsd: 10, note: "Best value." },
+  { id: "max", title: "Max", credits: 20_000, priceUsd: 25, note: "Heavy usage." },
 ];
 
 function shortId(id: string) {
@@ -92,6 +92,9 @@ export default function Page() {
   const [proStatus, setProStatus] = useState<ProStatus>("off");
   const [proLeft, setProLeft] = useState<number | null>(null);
 
+  const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
+  const [cryptoPrices, setCryptoPrices] = useState<{btc: number, xmr: number} | null>(null);
+
   // Billing
   const [walletOpen, setWalletOpen] = useState<boolean>(false);
   const [planId, setPlanId] = useState<string>(PLANS[0]!.id);
@@ -137,6 +140,14 @@ export default function Page() {
   const [infoOpen, setInfoOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Incolla qui gli indirizzi dei wallet che hai creato
+  const MY_WALLET_BTC = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"; // <--- CAMBIALO
+  const MY_WALLET_XMR = "44Affq6kbKs4YmM2aVZGQV3wXJvP8kR8p9"; // <--- CAMBIALO
+
+  // Modello AI
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState(process.env.NEXT_PUBLIC_DEFAULT_MODEL || "dolphin-mistral");
 
   type ChatMeta = { id: string; title: string; updatedAt: number; pinned?: boolean; };
 
@@ -155,12 +166,40 @@ export default function Page() {
   // Effects Refs Sync
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
+  useEffect(() => {
+    // Carica la lista dei modelli dal backend
+    const loadModels = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/models`);
+        const data = await res.json();
+        if (data.models && data.models.length > 0) {
+          setModels(data.models);
+          // Usa il default del backend o il primo della lista
+          setSelectedModel(data.default || data.models[0]);
+        }
+      } catch (e) {
+        console.error("Failed to load models", e);
+      }
+    };
+    loadModels();
+  }, [apiUrl]);
+
   // --- ACTIONS ---
 
   const cleanupStreamRefs = useCallback(() => {
     abortRef.current = null;
     readerRef.current = null;
   }, []);
+
+  const fetchPrices = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/pro/get-prices`);
+      const data = await res.json();
+      setCryptoPrices({ btc: data.btc_usd, xmr: data.xmr_usd });
+    } catch (e) {
+      console.error("Failed to fetch prices", e);
+    }
+  }, [apiUrl]);
 
   const stop = useCallback(() => {
     try { abortRef.current?.abort(); } catch {}
@@ -362,7 +401,7 @@ const downloadChat = useCallback((id: string, format: 'json' | 'txt') => {
 }, [chatList]);
 
 const clearAllData = useCallback(() => {
-  if (confirm("WARNING: This will delete all chats, and cache locally. Are you sure?")) {
+  if (confirm("WARNING: This will delete all chats, and cache locally (Save your token to recover credits). Are you sure?")) {
     localStorage.clear();
     window.location.reload(); // Ricarica la pagina pulita
   }
@@ -531,7 +570,8 @@ const clearAllData = useCallback(() => {
     setBillingMsg("");
   }, []);
 
-  const createInvoice = useCallback(async () => {
+  // btcpay create invoice removed
+  /*const createInvoice = useCallback(async () => {
     const plan = PLANS.find((p) => p.id === planId) ?? PLANS[0]!;
     setUiMsg("");
     setBillingMsg("");
@@ -555,8 +595,58 @@ const clearAllData = useCallback(() => {
       setBillingMsg("Invoice created. Waiting for payment confirmation…");
       if (link) window.open(link, "_blank", "noopener,noreferrer");
     } catch { setBillingState("error"); setBillingMsg("Create invoice failed (network error)."); }
-  }, [planId, apiUrl]);
+  }, [planId, apiUrl]);*/
 
+  // --- FUNZIONE CHECK PAGAMENTO MANUALE ---
+  const handleCheckPayment = async () => {
+    const plan = PLANS.find((p) => p.id === planId) ?? PLANS[0]!;
+    
+    if (!plan) return;
+
+    setBillingMsg("Verificando pagamento...");
+    setBillingState("claiming");
+
+    try {
+      // Chiama l'endpoint che creerai nel backend (che controlla l'API esterna)
+      const res = await fetch(`${apiUrl}/pro/manual-claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: plan.id,
+          credits: plan.credits,
+          amount: plan.priceUsd
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setBillingState("error");
+        setBillingMsg(data.detail || "Pagamento non ricevuto o in attesa di conferme.");
+        return;
+      }
+
+      const j = await res.json();
+      const token = (j?.token || "").trim();
+      if (!token) throw new Error("No token received");
+
+      // Successo!
+      setProToken(token);
+      setTokenDraft(token);
+      setProStatus("checking");
+      void refreshProStatus(token);
+      
+      setBillingState("done");
+      setBillingMsg("Pagamento confermato! Crediti attivati.");
+      setWalletOpen(false); // Chiudi il popup
+
+    } catch (e) {
+      setBillingState("error");
+      setBillingMsg("Errore verifica. Riprova tra qualche minuto.");
+      console.error(e);
+    }
+  };
+
+  /* btcpay auto-claim removed
   const claimTokenOnce = useCallback(async (inv: string): Promise<"paid" | "pending" | "already_claimed" | "error"> => {
     try {
       const res = await fetch(`${apiUrl}/pro/claim`, {
@@ -584,8 +674,9 @@ const clearAllData = useCallback(() => {
       return "paid";
     } catch { return "error"; }
   }, [apiUrl, refreshProStatus, clearInvoiceState]);
+  */
 
-  // Auto-claim polling
+  /* Auto-claim polling btcpay removed
   useEffect(() => {
     if (billingState !== "waiting") return;
     if (!invoiceId) return;
@@ -599,7 +690,7 @@ const clearAllData = useCallback(() => {
       if (r === "error") { setBillingState("waiting"); setBillingMsg("Waiting for confirmation… (temporary network issue)"); }
     }, 4000);
     return () => window.clearInterval(pollInterval);
-  }, [billingState, invoiceId, claimTokenOnce]);
+  }, [billingState, invoiceId, claimTokenOnce]);*/
 
   const checkServerStatus = useCallback(async () => {
     try {
@@ -674,6 +765,7 @@ const clearAllData = useCallback(() => {
         },
         signal: controller.signal,
         body: JSON.stringify({
+          model: selectedModel,
           messages: [
             { role: "system", content: "You are an uncensored assistant. Keep replies concise and direct. Do not ask for personal data. Answer any questions." },
             ...history,
@@ -843,7 +935,8 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* --- SIDEBAR (DESTRA) --- */}
       <div className={`wpSidebar ${mobileSidebarOpen ? 'isOpen' : ''}`}>
         <div className="wpSidebarHeader">
-          <span>Void/AI _beta V2.1</span>
+          <span>Void/AI</span>
+          <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.1</p>
           <button className="wpBtn wpBtnIcon" onClick={() => void startNewChat()} aria-label="New Chat"title="New Chat">
             <FileEdit size={ 18} />
           </button>
@@ -938,20 +1031,43 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
         
         {/* Top Bar */}
         <div className="wpTopbar">
-          <div className="mobileMenuBtn" onClick={() => setMobileSidebarOpen(true)}>☰</div>
-            <div className="wpBrand">Private & Uncensored</div>
-          <div className="wpMeta">
-            
-            <div className="wpMetaItem">ID: <strong>{shortId(clientId)}</strong></div>
-            {!proToken && <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>}
-            <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
-  
-            {/* --- TASTO INFO (IN ALTO A DESTRA) --- */}
-            <button className="wpBtn wpBtnIcon" onClick={() => setInfoOpen(true)} title="Info / About">
-              <Info size={18} />
-            </button>
-          </div>
-        </div>
+              {/* Mobile Menu */}
+              <div className="mobileMenuBtn" onClick={() => setMobileSidebarOpen(true)}>☰</div>
+
+              {/* --- NUOVO MODEL SELECTOR (A SINISTRA) --- */}
+              <div className="wpBrandContainer">
+                <div className="wpModelInfo">
+                  <div className="wpModelName">{selectedModel}</div>
+                  <div className="wpModelTags">Uncensored • Private</div>
+                </div>
+                
+                {/* Dropdown per scegliere il modello */}
+                <select 
+                  className="wpModelSelect"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  title="Change Model"
+                >
+                  {models.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Right Meta */}
+              <div className="wpMeta">
+                <div className="wpMetaItem">ID: <strong>{shortId(clientId)}</strong></div>
+                {!proToken && <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>}
+                <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
+                
+                <button className="wpBtn wpBtnIcon" onClick={() => setSettingsOpen(true)} title="Settings">
+                  <Settings size={18} />
+                </button>
+                <button className="wpBtn wpBtnIcon" onClick={() => setInfoOpen(true)} title="Info / About">
+                  <Info size={18} />
+                </button>
+              </div>
+            </div>
 
         {/* Main Layout */}
         <div className="wpMain">
@@ -1051,15 +1167,23 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
               <button className="wpBtn" onClick={() => setWalletOpen(false)}>Close</button>
             </div>
             <div className="wpModalContent">
-              {/* Token Section */}
+  
+              {/* 1. Token Esistente */}
               <div className="wpSection">
                 <span className="wpLabel">Existing Token</span>
                 <div className="tokenInputRow">
-                  <input className="wpInput" value={tokenDraft} onChange={e => setTokenDraft(e.target.value)} placeholder="Paste token..." />
+                  <input 
+                    className="wpInput" 
+                    value={tokenDraft} 
+                    onChange={e => setTokenDraft(e.target.value)} 
+                    placeholder="Paste token here..." 
+                  />
                 </div>
                 <div className="wpBtnGroup">
                   <button className="wpBtn primary" onClick={() => void activateToken(tokenDraft)}>Load</button>
-                  <button className="wpBtn danger" onClick={() => { setTokenDraft(""); void activateToken(""); setUiMsg("Token removed."); }}>Unlink</button>
+                  <button className="wpBtn danger" onClick={() => { setTokenDraft(""); void activateToken(""); }}>
+                    <Trash2 size={14} />
+                  </button>
                 </div>
                 {uiMsg && <div className="uiMsg">{uiMsg}</div>}
               </div>
@@ -1071,36 +1195,138 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <div className={`wpPaymentOption ${paymentMethod === 'btc' ? 'active' : ''}`} onClick={() => setPaymentMethod('btc')}>Bitcoin (BTC)</div>
                   <div className={`wpPaymentOption ${paymentMethod === 'xmr' ? 'active' : ''}`} onClick={() => setPaymentMethod('xmr')}>Monero (XMR)</div>
                 </div>
-
-                <div className="wpPlansRow">
+                
+                {/* Selezione Piano (Visualizzazione Prezzo) */}
+                <div className="wpPlansRow" style={{marginBottom: '20px'}}>
                   {PLANS.map(p => (
-                    <div key={p.id} className={`wpPlanBtn ${planId === p.id ? 'active' : ''}`} onClick={() => setPlanId(p.id)}>
+                    <div 
+                      key={p.id} 
+                      className={`wpPlanBtn ${planId === p.id ? 'active' : ''}`} 
+                      onClick={() => setPlanId(p.id)}
+                    >
                       <div className="wpPlanPrice">${p.priceUsd}</div>
                       <div className="wpPlanTitle">{p.title}</div>
                       <div className="wpPlanCredits">{p.credits.toLocaleString()} credits</div>
-                      {p.note && <div className="wpPlanNote">{p.note}</div>}
                     </div>
                   ))}
                 </div>
-                
-                <div className="wpBtnGroup" style={{ marginTop: 20, justifyContent: 'flex-end' }}>
-                  {paymentMethod === 'btc' ? (
-                    <button className="wpBtn primary" onClick={() => void createInvoice()} disabled={billingState === "creating"}>
-                      {billingState === "creating" ? "Creating..." : "Pay with BTC"}
-                    </button>
-                  ) : (
-                    <button className="wpBtn primary" disabled>Pay with XMR (Soon)</button>
-                  )}
-                </div>
 
-                {invoiceId && paymentMethod === 'btc' && (
-                  <div className="invoiceStatus">
-                    <div><strong>Invoice ID:</strong> {shortId(invoiceId)}</div>
-                    {checkoutLink && <div><a href={checkoutLink} target="_blank" rel="noreferrer">Open Payment Link ↗</a></div>}
-                    {billingMsg && <div className="billingMsg">{billingMsg}</div>}
-                  </div>
-                )}
+              {/* --- PULSANTE CHE APRE IL NUOVO POPUP --- */}
+            <div style={{display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end'}}>
+              <button 
+                className="wpBtn primary" 
+                onClick={() => {
+                  // 1. Prende i prezzi freschi
+                  void fetchPrices(); 
+                  // 2. Apre il popup dettagli
+                  setPaymentDetailsOpen(true); 
+                }}
+              >
+                Pay with {paymentMethod === 'btc' ? 'Bitcoin' : 'Monero'}
+              </button>
+            </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODALE DETTAGLI PAGAMENTO (SUB-POPUP) --- */}
+      {paymentDetailsOpen && (
+        <div className="wpModalBackdrop" onMouseDown={() => setPaymentDetailsOpen(false)}>
+          <div className="wpModal wpPaymentDetailsModal" onMouseDown={e => e.stopPropagation()}>
+            <div className="wpModalHead">
+              <span className="wpModalTitle">Payment Details</span>
+              <button className="wpBtn" onClick={() => setPaymentDetailsOpen(false)}>Close</button>
+            </div>
+            <div className="wpModalContent">
+              
+              <div style={{textAlign: 'center', marginBottom: 20}}>
+                <h3 style={{margin: 0}}>{planId.toUpperCase()} Plan</h3>
+                <div style={{fontSize: '20px', fontWeight: 700, color: 'var(--wp-primary)'}}>
+                  ${PLANS.find(p => p.id === planId)!.priceUsd}
+                </div>
+              </div>
+
+              {/* Se non abbiamo ancora i prezzi, mostra caricamento */}
+              {!cryptoPrices ? (
+                <div style={{textAlign: 'center', padding: 20}}>Fetching current rates...</div>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center'}}>
+                  
+                  {/* Calcolo Importo */}
+                  {(() => {
+                    const currentPlan = PLANS.find(p => p.id === planId)!;
+                    const priceUsd = currentPlan.priceUsd;
+                    const priceCrypto = paymentMethod === 'btc' ? cryptoPrices.btc : cryptoPrices.xmr;
+                    const amountCrypto = priceUsd / priceCrypto;
+                    
+                    // Formattazione indirizzo (tronca se troppo lungo per visualizzazione)
+                    const fullAddress = paymentMethod === 'btc' ? MY_WALLET_BTC : MY_WALLET_XMR;
+                    const shortAddress = `${fullAddress.substring(0, 6)}...${fullAddress.substring(fullAddress.length - 4)}`;
+                    
+                    // Formattazione QR Code con Importo
+                    // Format Bitcoin: bitcoin:address?amount=x
+                    // Format Monero: monero:address?tx_amount=x
+                    const qrData = paymentMethod === 'btc' 
+                      ? `bitcoin:${fullAddress}?amount=${amountCrypto.toFixed(8)}` 
+                      : `monero:${fullAddress}?tx_amount=${amountCrypto.toFixed(12)}`;
+
+                    return (
+                      <>
+                        {/* Importo Preciso */}
+                        <div style={{textAlign: 'center'}}>
+                          {/* Importo Preciso (CLICCABILE) */}
+                          <div 
+                            className="wpCopyAmountBtn"
+                            onClick={() => void copyToClipboard(amountCrypto.toFixed(paymentMethod === 'btc' ? 8 : 12))}
+                            title="Click to copy amount"
+                          >
+                            <div className="wpCopyLabel">Send exactly:</div>
+                            <div className="wpCopyValue">
+                              <span className="amount">{amountCrypto.toFixed(paymentMethod === 'btc' ? 8 : 12)}</span>
+                              <span className="currency">{paymentMethod.toUpperCase()}</span>
+                              <Copy size={16} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* QR Code */}
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`} 
+                          alt="Payment QR" 
+                          style={{borderRadius: '8px', border: '1px solid var(--wp-border)', padding: 10, background: 'white'}}
+                        />
+
+                        {/* Indirizzo */}
+                        <div style={{width: '100%', display: 'flex', gap: 8, alignItems: 'center'}}>
+                          <input 
+                            className="wpInput" 
+                            readOnly 
+                            value={fullAddress} 
+                            style={{fontFamily: 'monospace', fontSize: '11px', flex: 1}}
+                          />
+                          <button className="wpBtn" onClick={() => void copyToClipboard(fullAddress)}>
+                            <Copy size={16} />
+                          </button>
+                        </div>
+
+                        {/* Tasto Check Payment */}
+                        <button 
+                          className="wpBtn primary" 
+                          onClick={handleCheckPayment}
+                          disabled={billingState === "claiming"}
+                          style={{width: '100%', padding: 12, fontSize: 15}}
+                        >
+                          {billingState === "claiming" ? "Checking..." : "Check Payment"}
+                        </button>
+                      </>
+                    );
+                  })()}
+                  
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -1144,7 +1370,7 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
               <button className="wpBtn primary" onClick={handleExportChats} style={{flex: 1}}>
                 <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                  <Download size={16} /> Export Chats
+                  <Download size={16} /> Export Chats (.json)
                 </span>
               </button>
               <input 
@@ -1160,7 +1386,7 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
                 style={{flex: 1}}
               >
                 <span style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                  <Upload size={16} /> Import Chats
+                  <Upload size={16} /> Import Chats (.json)
                 </span>
               </button>
             </div>
@@ -1174,7 +1400,7 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
 
           {/* --- 3. API OVERRIDE --- */}
           <div className="wpSection">
-            <span className="wpLabel">Backend Server</span>
+            <span className="wpLabel">Advanced settings</span>
             <p style={{fontSize: '12px', color: 'var(--wp-muted)', marginBottom: '10px'}}>
               Change API URL to use a local or custom instance.
             </p>
@@ -1232,7 +1458,8 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
           <div className="wpModalContent">
             
             <div style={{textAlign: 'center', marginBottom: 20}}>
-              <h2 style={{margin: 0, fontSize: 24}}>VOID/AI _beta V2.1</h2>
+              <h2 style={{margin: 0, fontSize: 24}}>VOID/AI</h2>
+              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.1</p>
               <p style={{color: 'var(--wp-muted)', fontSize: 13}}>Uncensored & Private Assistant</p>
             </div>
 

@@ -20,6 +20,13 @@ load_dotenv()
 
 app = FastAPI(title="VOID AI", docs_url=None, redoc_url=None)
 
+# --- CONFIGURAZIONE WALLETS STATICHE ---
+# Puoi metterle nel file .env o qui (Meglio in .env)
+WALLET_BTC = os.getenv("WALLET_BTC", "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh")
+WALLET_XMR = os.getenv("WALLET_XMR", "44Affq6kbKs4YmM2aVZGQV3wXJvP8kR8p9")
+
+# ... resto del codice ...
+
 # --- CONFIGURATION ---
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-mistral")
@@ -83,6 +90,11 @@ class ProInvoiceIn(BaseModel):
 
 class ClaimIn(BaseModel):
     invoiceId: str
+
+class ManualClaimIn(BaseModel):
+    planId: str
+    credits: int
+    amount: float # Prezzo in USD
 
 # --- DATABASE HELPERS ---
 def get_db():
@@ -225,6 +237,23 @@ async def _shutdown():
     global redis
     if redis is not None:
         await redis.close()
+
+# --- ROUTE: MODELS ---
+@app.get("/models")
+async def get_models():
+    try:
+        # Chiamiamo Ollama per sapere quali modelli sono stati scaricati (tags)
+        async with httpx.AsyncClient(timeout=5) as client:
+            res = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
+            res.raise_for_status()
+            data = res.json()
+            # Estraiamo solo i nomi
+            models = [m['name'] for m in data.get('models', [])]
+            return {"models": models, "default": OLLAMA_MODEL}
+    except Exception as e:
+        # Se Ollama è spento o errore, restituiamo almeno quello configurato
+        print(f"Errore caricamento modelli: {e}")
+        return {"models": [OLLAMA_MODEL], "default": OLLAMA_MODEL}
 
 # --- LOGIC: LIMITS & AUTH ---
 
@@ -465,11 +494,141 @@ async def pro_claim(body: ClaimIn):
 
         conn.execute("INSERT INTO pro_tokens(token_hash, credits_left, created_at) VALUES (?, ?, ?)", (token_hash, credits, int(time.time())))
         conn.execute("INSERT INTO claims(invoice_id, token_hash, claimed_at) VALUES (?, ?, ?)", (body.invoiceId, token_hash, int(time.time())))
+
+        # Cancella la fattura dal DB (Log minimization)
+        conn.execute("DELETE FROM invoices WHERE invoice_id = ?", (body.invoiceId,))
         
         conn.commit()
         return {"token": token, "credits": credits}
     finally:
         conn.close()
+
+
+# --- HELPER: Prezzi Crypto ---
+async def get_crypto_price(coin_id: str) -> float:
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            # CoinGecko API (Gratuito)
+            url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
+            r = await client.get(url)
+            data = r.json()
+            return float(data[coin_id]['usd'])
+    except Exception as e:
+        print(f"Error fetching price for {coin_id}: {e}")
+        # Se fallisce il prezzo, ritorniamo 1 per evitare divisioni per zero, 
+        # ma il controllo fallirà se il pagamento non è stato fatto.
+        return 1.0
+
+# --- HELPER: Saldo BTC (Blockchain API) ---
+async def get_btc_balance(address: str) -> float:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Blockchain.info restituisce il saldo in Satoshis
+            url = f"https://blockchain.info/balance/{address}?confirmations=1"
+            r = await client.get(url)
+            data = r.json()
+            # Converte Satoshis in BTC
+            return float(data.get('final_balance', 0)) / 100_000_000
+    except Exception as e:
+        print(f"Error fetching BTC balance: {e}")
+        return 0.0
+
+# --- HELPER: Saldo XMR (Blockchair API) ---
+async def get_xmr_balance(address: str) -> float:
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Blockchair restituisce il saldo in atomic units
+            url = f"https://api.blockchair.com/xmr/dashboards/address/{address}"
+            r = await client.get(url)
+            data = r.json()
+            # Converte atomic units in XMR
+            return float(data.get(address, {}).get('address', {}).get('balance', 0)) / 1_000_000_000_000
+    except Exception as e:
+        print(f"Error fetching XMR balance: {e}")
+        return 0.0
+
+# --- ENDPOINT: MANUAL CLAIM ---
+@app.post("/pro/manual-claim")
+async def pro_manual_claim(body: ManualClaimIn):
+    if redis is None:
+        raise HTTPException(status_code=503, detail="Redis not configured")
+
+    # Recupera i prezzi attuali
+    price_btc, price_xmr = await asyncio.gather(
+        get_crypto_price("bitcoin"),
+        get_crypto_price("monero")
+    )
+
+    # Recupera i saldi attuali
+    curr_btc, curr_xmr = await asyncio.gather(
+        get_btc_balance(WALLET_BTC),
+        get_xmr_balance(WALLET_XMR)
+    )
+
+    # Recupera i saldi precedenti da Redis (per rilevare transazioni nuove)
+    old_btc = float(await redis.get("manual_balance:btc") or 0)
+    old_xmr = float(await redis.get("manual_balance:xmr") or 0)
+
+    # Calcola quanto è arrivato di NUOVO
+    new_btc = curr_btc - old_btc
+    new_xmr = curr_xmr - old_xmr
+
+    # Calcola quanto vale la transazione in USD
+    value_usd_btc = new_btc * price_btc
+    value_usd_xmr = new_xmr * price_xmr
+
+    # Tolleranza (perché i prezzi cambiano e le API possono essere ritardate)
+    # Accettiamo se il valore è almeno il 90% del piano
+    target_amount = body.amount
+    tolerance = target_amount * 0.90
+
+    payment_found = False
+
+    # Verifica BTC
+    if value_usd_btc >= tolerance:
+        print(f"Payment found: {new_btc} BTC (USD: {value_usd_btc:.2f})")
+        payment_found = True
+        await redis.set("manual_balance:btc", str(curr_btc))
+
+    # Verifica XMR
+    elif value_usd_xmr >= tolerance:
+        print(f"Payment found: {new_xmr} XMR (USD: {value_usd_xmr:.2f})")
+        payment_found = True
+        await redis.set("manual_balance:xmr", str(curr_xmr))
+
+    # Se non c'è pagamento
+    if not payment_found:
+        return {"status": "error", "detail": "No new payment detected or amount too low."}
+
+    # SE C'È PAGAMENTO: Genera Token
+    token = "void_" + secrets.token_urlsafe(32)
+    token_hash = _hash_token(token)
+
+    conn = get_db()
+    try:
+        conn.execute("INSERT INTO pro_tokens(token_hash, credits_left, created_at) VALUES (?, ?, ?)", 
+                     (token_hash, body.credits, int(time.time())))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"status": "success", "token": token, "credits": body.credits}
+
+# --- ENDPOINT PREZZI LIVE ---
+@app.get("/pro/get-prices")
+async def get_prices():
+    try:
+        price_btc, price_xmr = await asyncio.gather(
+            get_crypto_price("bitcoin"),
+            get_crypto_price("monero")
+        )
+        return {
+            "btc_usd": price_btc,
+            "xmr_usd": price_xmr
+        }
+    except Exception as e:
+        # Fallback prezzi se API down
+        return {"btc_usd": 65000, "xmr_usd": 150}
 
 @app.get("/pro/status")
 async def pro_status(request: Request):
