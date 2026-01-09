@@ -935,8 +935,8 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* --- SIDEBAR (DESTRA) --- */}
       <div className={`wpSidebar ${mobileSidebarOpen ? 'isOpen' : ''}`}>
         <div className="wpSidebarHeader">
-          <span>Void/AI</span>
-          <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.1</p>
+          <span>VOID/AI</span>
+          <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.6</p>
           <button className="wpBtn wpBtnIcon" onClick={() => void startNewChat()} aria-label="New Chat"title="New Chat">
             <FileEdit size={ 18} />
           </button>
@@ -1459,7 +1459,7 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
             
             <div style={{textAlign: 'center', marginBottom: 20}}>
               <h2 style={{margin: 0, fontSize: 24}}>VOID/AI</h2>
-              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.1</p>
+              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.6</p>
               <p style={{color: 'var(--wp-muted)', fontSize: 13}}>Uncensored & Private Assistant</p>
             </div>
 
