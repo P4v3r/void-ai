@@ -83,7 +83,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   padding: 20px;
   border-bottom: 1px solid var(--sidebar-border);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -135,8 +135,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   justify-content: center;
 }
 .wpThemeCircle {
-  width: 100%;
-  padding: 12px;
+  padding: 10px;
   border-radius: var(--radius-md);
   background: var(--wp-bg);
   border: 1px solid var(--wp-border);
@@ -509,6 +508,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 }
 
 .wpGetCreditsBtn {
+  width: 100%;
   background: var(--wp-primary-bg);
   color: var(--wp-primary);
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -516,9 +516,10 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  padding: 10px;
+  padding: 12px;
   border-radius: var(--radius-md);
   transition: all 0.2s;
+  gap: 10px;
 }
 .wpGetCreditsBtn:hover { background: rgba(59, 130, 246, 0.2); }
 
@@ -720,25 +721,40 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   opacity: 1;
 }
 
-/* --- MODEL SELECTOR --- */
+/* --- MODEL SELECTOR FIX --- */
+/* --- CUSTOM MODEL DROPDOWN --- */
 .wpBrandContainer {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
   position: relative;
+  width: 180px; /* Larghezza menu fissa */
+  flex-shrink: 0;
+  white-space: nowrap; /* Tieni su una riga */
+}
+
+.wpModelTrigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 4px 0; /* Leggero padding interno */
 }
 
 .wpModelInfo {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .wpModelName {
+  position: relative;
   font-size: 16px;
   font-weight: 700;
   color: var(--wp-text);
   line-height: 1.1;
+  white-space: nowrap; /* Tieni su una riga */
 }
 
 .wpModelTags {
@@ -747,21 +763,153 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Select invisibile che si sovrappone */
-.wpModelSelect {
+/* IL MENU A TENDINA */
+.wpModelDropdown {
   position: absolute;
-  top: 0;
+  top: calc(100% + 8px); /* 8px di distanza sotto il nome */
   left: 0;
   width: 100%;
-  height: 100%;
-  opacity: 0; /* Invisibile ma cliccabile */
-  cursor: pointer;
-  z-index: 1;
+  background: var(--wp-panel); /* Colore sfondo automatico */
+  border: 1px solid var(--wp-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15); /* Ombra forte */
+  padding: 4px;
+  z-index: 9999; /* Sopra tutto */
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.15s ease;
 }
 
-/* Hover effect per capire che è cliccabile */
-.wpBrandContainer:hover .wpModelName {
+.wpModelNameInMenu {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--wp-text);
+  margin-bottom: 2px;
+}
+
+/* I tag nel menu saranno leggermente più piccoli */
+.wpModelDropdown .wpModelTags {
+  font-size: 10px; /* Un po' più piccoli del menu */
+  margin: 0; /* Rimuovi margini se c'erano */
+  line-height: 1;
+}
+
+.wpModelItem {
+  padding: 8px 12px 6px 12px;
+  font-size: 14px;
+  color: var(--wp-text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.wpModelItem:hover {
+  background: var(--wp-bg); /* Colore hover automatico */
+}
+
+.wpModelItem.active {
+  background: rgba(59, 130, 246, 0.1); /* Blu tenue per l'attivo */
   color: var(--wp-primary);
+  font-weight: 600;
+}
+
+.wpLogoContainer {
+  display: flex;
+  align-items: baseline; /* <--- CAMBIATO DA 'center' A 'baseline' */
+  gap: 12px;
+  /* height: 22px;  <-- RIMUOVI 'height: 22px' se l'avevamo messo prima */
+}
+
+.wpMainLogo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--wp-text);
+  display: inline-flex; /* Usa inline-flex per non forzare l'altezza */
+  align-items: baseline;
+  line-height: 1;
+  font-family: monospace;
+}
+
+.logoDot {
+  color: var(--wp-primary);
+  margin: 0 2px;
+  /* Aggiungi un leggero margine negativo per perfezionare l'allineamento se serve */
+  margin-bottom: -2px; 
+  font-family: monospace;
+}
+
+.wpVersionText {
+  font-size: 12px;
+  color: var(--wp-muted);
+  font-weight: 500;
+  line-height: 1;
+  font-family: monospace;
+  /* margin-top/bottom non servono più perché usa baseline */
+}
+
+.wpModalInfoHeader {
+  display: flex;
+  flex-direction: column; /* <--- METTE I DUE BLOCCHI UNO SOPRA L'ALTRO */
+  align-items: center;       /* Centrato orizzontalmente */
+  gap: 8px;                /* Spazio tra logo e versione */
+  margin-bottom: 10px;
+}
+
+/* --- FAQ MODAL --- */
+.wpFaqModal {
+  max-width: 600px; /* Larghezza maggiore per leggere bene */
+}
+
+.faqList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.faqItem {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--wp-border);
+}
+.faqItem:last-child {
+  border-bottom: none;
+}
+
+.faqQ {
+  font-weight: 600;
+  color: var(--wp-text);
+  margin-bottom: 6px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.faqA {
+  color: var(--wp-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* --- TERMS MODAL --- */
+.wpTermsModal {
+  max-width: 600px;
+}
+
+.termsContent h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wp-text);
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
+.termsContent p {
+  color: var(--wp-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 12px;
 }

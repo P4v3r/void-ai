@@ -56,7 +56,7 @@ Quando passerai a VPS + Nginx, dovrai applicare la logica “behind a proxy” (
 open -a Electrum.app --args --testnet
 
 -------
-void_pxehPu3MeyZzpiDAfT6g6JPUO1ItxeME16pCYhO7g0E
+void_pw-nD3cstBTPkOO2jiH0UbZeChmt6TfnVIRK6ivCIh4
 
 ------
 Idee per pagamenti BTC/XMR

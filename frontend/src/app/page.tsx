@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Copy, RotateCcw, Trash2, Plus, Menu, Sun, Moon, CheckCircle, AlertCircle, FileEdit, Coins,  Settings, Download, Upload, FileText, MoreHorizontal, Info, Pin, Pencil, DownloadCloud, File as FileIcon} from "lucide-react";
+import { Copy, RotateCcw, Trash2, Plus, Menu, Sun, Moon, CheckCircle, AlertCircle, FileEdit, Coins,  Settings, Download, Upload, FileText, MoreHorizontal, Info, Pin, Pencil, DownloadCloud, File as FileIcon, ChevronDown, HelpCircle, FileCheck} from "lucide-react";
 
 const STORAGE_KEY_CHATS = "void_chat_history";
 
@@ -33,6 +33,12 @@ const PLANS: Plan[] = [
   { id: "plus", title: "Plus", credits: 5_000, priceUsd: 10, note: "Best value." },
   { id: "max", title: "Max", credits: 20_000, priceUsd: 25, note: "Heavy usage." },
 ];
+
+// Mappa dei Tag per ogni modello installato su Ollama
+const MODEL_TAGS: Record<string, string[]> = {
+  "dolphin-mistral:latest": ["Fast","Uncensored", "Private"],
+  "dolphin-phi:latest": ["Reasoning", "Uncensored", "Private"],
+};
 
 function shortId(id: string) {
   return id ? `${id.slice(0, 8)}…` : "—";
@@ -123,6 +129,9 @@ export default function Page() {
 
   const [paymentMethod, setPaymentMethod] = useState<"btc" | "xmr">("btc");
 
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+
   // Refs
   const messagesRef = useRef<Msg[]>(messages);
   const abortRef = useRef<AbortController | null>(null);
@@ -141,13 +150,15 @@ export default function Page() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   // Incolla qui gli indirizzi dei wallet che hai creato
   const MY_WALLET_BTC = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"; // <--- CAMBIALO
   const MY_WALLET_XMR = "44Affq6kbKs4YmM2aVZGQV3wXJvP8kR8p9"; // <--- CAMBIALO
 
   // Modello AI
   const [models, setModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState(process.env.NEXT_PUBLIC_DEFAULT_MODEL || "dolphin-mistral");
+  const [selectedModel, setSelectedModel] = useState(process.env.NEXT_PUBLIC_DEFAULT_MODEL || "dolphin-mistral:latest");
 
   type ChatMeta = { id: string; title: string; updatedAt: number; pinned?: boolean; };
 
@@ -167,15 +178,27 @@ export default function Page() {
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   useEffect(() => {
-    // Carica la lista dei modelli dal backend
     const loadModels = async () => {
       try {
         const res = await fetch(`${apiUrl}/models`);
         const data = await res.json();
         if (data.models && data.models.length > 0) {
+          // --- MODIFICA QUI: FILTRA I MODELLI ---
+          const filteredModels = data.models.filter((m: string) => MODEL_TAGS.hasOwnProperty(m));
+          setModels(filteredModels);
+          
           setModels(data.models);
-          // Usa il default del backend o il primo della lista
-          setSelectedModel(data.default || data.models[0]);
+          console.log("Data models:", data.models); // <--- Guarda la console del browser (F12) per vedere i nomi reali!
+
+          // Prendi il modello suggerito dal backend o il primo della lista
+          const suggestedModel = data.default || filteredModels[0];
+
+          // FIX: Verifica se il modello suggerito è nella tua MAPPA TAGS
+          // Se non c'è (es. il backend invia "dolphin-mistral" ma tu hai solo "dolphin-mistral:latest"),
+          // ignora quello del backend e usa il primo valido.
+          const validModel = filteredModels.includes(suggestedModel) ? suggestedModel : filteredModels[0];
+
+          setSelectedModel(validModel);
         }
       } catch (e) {
         console.error("Failed to load models", e);
@@ -183,6 +206,17 @@ export default function Page() {
     };
     loadModels();
   }, [apiUrl]);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      // Chiudi se clicchi su qualcosa che non è wpBrandContainer o i suoi figli
+      if (!(e.target as HTMLElement).closest('.wpBrandContainer')) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   // --- ACTIONS ---
 
@@ -231,7 +265,8 @@ export default function Page() {
 
   const clearChat = useCallback(async () => {
     if (clearing) return;
-    
+    if (!confirm("Are you sure you want to delete this chat?")) return;
+
     stop();
     setClearing(true);
 
@@ -719,8 +754,10 @@ const clearAllData = useCallback(() => {
     const text = input.trim();
     if (!text || loading || clearing) return;
 
+    // Free left removed
     if (freeLeft <= 0 && !proToken) {
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "ai", text: "Free limit reached. Open Credits to continue." }]);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "ai", text: "Zero Credits left. Get Credits to continue." }]);
+      //setMessages((m) => [...m, { id: crypto.randomUUID(), role: "ai", text: "Free limit reached. Open Credits to continue." }]);
       return;
     }
 
@@ -782,7 +819,7 @@ const clearAllData = useCallback(() => {
 
       if (!res.ok) {
         if (res.status === 402) {
-          const msg = proToken ? "Pro credits exhausted. Open Credits." : "Free limit reached. Open Credits.";
+          const msg = proToken ? "Pro credits exhausted. Open Credits." : "Zero Credits left. Open Credits.";
           setMessages((prevMsgs) => prevMsgs.map((m) => (m.id === aiId ? { ...m, text: msg } : m)));
           setStatus("idle"); setLoading(false); cleanupStreamRefs(); return;
         }
@@ -840,12 +877,26 @@ const clearAllData = useCallback(() => {
   }, [messages, send]);
 
   function proStatusLine() {
-    if (!proToken) return "Pro: Off";
+    if (!proToken) return "Credits: 0";
+    if (proStatus === "checking") return "Credits: Checking…";
+    if (proStatus === "invalid") return "Credits: Invalid token";
+    if (proStatus === "exhausted") return "Credits: 0";
+    if (proStatus === "active") {
+  if (typeof proLeft === "number") {
+      // Se è un numero, applica la formattazione con il punto
+      // Regex: cerca i punti ogni 3 cifre da destra a sinistra
+      const formatted = proLeft.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      return `Credits: ${formatted}`;
+    }
+    return `Credits: ${proLeft}`;
+  }
+
+    /* Pro sostituito con credits
     if (proStatus === "checking") return "Pro: Checking…";
     if (proStatus === "invalid") return "Pro: Invalid token";
     if (proStatus === "exhausted") return "Pro: Active (0 credits)";
-    if (proStatus === "active") return `Pro: Active${typeof proLeft === "number" ? ` (${proLeft} credits)` : ""}`;
-    return "Pro: Off";
+    if (proStatus === "active") return `Pro: Active${typeof proLeft === "number" ? ` (${proLeft} credits)` : ""}`;*/
+    return "Credits: 0";
   }
 
   // --- EXPORT CHATS ---
@@ -935,17 +986,22 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* --- SIDEBAR (DESTRA) --- */}
       <div className={`wpSidebar ${mobileSidebarOpen ? 'isOpen' : ''}`}>
         <div className="wpSidebarHeader">
-          <span>VOID/AI</span>
-          <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.6</p>
-          <button className="wpBtn wpBtnIcon" onClick={() => void startNewChat()} aria-label="New Chat"title="New Chat">
-            <FileEdit size={ 18} />
+          
+        <div className="wpLogoContainer">
+            <div className="wpMainLogo">
+              VOID<span className="logoDot">.</span>AI
+            </div>
+          </div>
+          {/* --- SIDEBAR (DESTRA) --- */}
+          <button className="wpBtn wpBtnIcon" onClick={() => setInfoOpen(true)} title="Info / About">
+            <Info size={18} />
           </button>
         </div>
         
         <div className="wpSidebarActions">
-          <div className="wpChatItem wpGetCreditsBtn" onClick={() => setWalletOpen(true)}>
-            <Coins size={16} style={{marginRight: 8}} />
-            <span>Get Credits</span>
+          <div className="wpThemeCircle" onClick={() => void startNewChat()} aria-label="New Chat"title="New Chat">
+            <FileEdit size={16}/>
+            <span>New Chat</span>
           </div>
         </div>
 
@@ -998,10 +1054,10 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <div className="chatMenuItem" onClick={() => downloadChat(chat.id, 'txt')}>
                       <FileText size={14} style={{marginRight: 8}} /> Plain Text (.txt)
                     </div>
-                    {/* Placeholder PDF */}
+                    {/* Placeholder PDF 
                     <div className="chatMenuItem disabled" title="Coming soon">
                       <DownloadCloud size={14} style={{marginRight: 8}} /> PDF document (.pdf)
-                    </div>
+                    </div>*/}
 
                     <div className="chatMenuDivider"></div>
                     <div className="chatMenuItem danger" onClick={(e) => void deleteChat(chat.id, e)}>
@@ -1014,11 +1070,11 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
           ))}
         </div>
 
-       {/* --- SIDEBAR BOTTOM: SETTINGS --- */}
+       {/* --- SIDEBAR BOTTOM: Get Credits --- */}
         <div className="wpThemeToggleInSidebar">
-          <div className="wpThemeCircle" onClick={() => setSettingsOpen(true)}>
-            <Settings size={18} />
-            <span style={{marginLeft: 8}}>Settings</span>
+          <div className="wpGetCreditsBtn" onClick={() => setWalletOpen(true)}>
+            <Coins size={18} />
+            <span style={{marginLeft: 8}}>Get Credits</span>
           </div>
         </div>
       </div>
@@ -1034,37 +1090,59 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
               {/* Mobile Menu */}
               <div className="mobileMenuBtn" onClick={() => setMobileSidebarOpen(true)}>☰</div>
 
-              {/* --- NUOVO MODEL SELECTOR (A SINISTRA) --- */}
+              {/* --- NUOVO MODEL SELECTOR (CUSTOM DROPDOWN) --- */}
               <div className="wpBrandContainer">
-                <div className="wpModelInfo">
-                  <div className="wpModelName">{selectedModel}</div>
-                  <div className="wpModelTags">Uncensored • Private</div>
+                {/* Trigger Area (Cliccami) */}
+                <div className="wpModelTrigger" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                  <div className="wpModelInfo">
+                    <div className="wpModelName">{selectedModel}</div>
+                    <div className="wpModelTags">
+                      {/* CERCA I TAG NELLA MAPPA, ALTRIMENTI "General" */}
+                      {(MODEL_TAGS[selectedModel] || ["General"]).join(" • ")}
+                    </div>
+                  </div>
+                  {/* Icona freccina che ruota */}
+                  <ChevronDown size={14} style={{transition: 'transform 0.2s', transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)'}} />
                 </div>
-                
-                {/* Dropdown per scegliere il modello */}
-                <select 
-                  className="wpModelSelect"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  title="Change Model"
-                >
-                  {models.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="wpModelDropdown">
+                    {models.map(m => (
+                      <div 
+                        key={m} 
+                        className={`wpModelItem ${m === selectedModel ? 'active' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation(); 
+                          setSelectedModel(m);
+                          setIsDropdownOpen(false);
+                        }}
+                      >
+                        {/* Nome Modello */}
+                        <div className="wpModelNameInMenu">{m}</div>
+                        {/* TAG SPECIFICI PER QUELLO MODELLO */}
+                        <div className="wpModelTags">
+                          {(MODEL_TAGS[m] || ["General"]).join(" • ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Right Meta */}
               <div className="wpMeta">
                 <div className="wpMetaItem">ID: <strong>{shortId(clientId)}</strong></div>
-                {!proToken && <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>}
+
+                
+                {/* Free credits left removed
+                {!proToken && 
+                <div className="wpMetaItem">Free: <strong>{freeLeft}</strong></div>}*/}
+
                 <div className="wpMetaItem"><strong>{proStatusLine()}</strong></div>
                 
                 <button className="wpBtn wpBtnIcon" onClick={() => setSettingsOpen(true)} title="Settings">
                   <Settings size={18} />
-                </button>
-                <button className="wpBtn wpBtnIcon" onClick={() => setInfoOpen(true)} title="Info / About">
-                  <Info size={18} />
                 </button>
               </div>
             </div>
@@ -1115,7 +1193,7 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
                         {!isUser && (
                           <>
                             {/* Regenerate: solo se è l'ultimo messaggio, non è benvenuto, non è errore */}
-                            {isLastMessage && !isWelcomeScreen && !m.text.toLowerCase().includes("limit") && !m.text.toLowerCase().includes("error") && !m.text.toLowerCase().includes("too many requests") && (
+                            {isLastMessage && !isWelcomeScreen && !m.text.toLowerCase().includes("continue") && !m.text.toLowerCase().includes("error") && !m.text.toLowerCase().includes("too many requests") && (
                               <button className="wpActionBtn" onClick={() => void handleRegenerate()} title="Regenerate / Modify Prompt">
                                 <RotateCcw size={16} />
                               </button>
@@ -1456,13 +1534,19 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
             <button className="wpBtn" onClick={() => setInfoOpen(false)}>Close</button>
           </div>
           <div className="wpModalContent">
-            
-            <div style={{textAlign: 'center', marginBottom: 20}}>
-              <h2 style={{margin: 0, fontSize: 24}}>VOID/AI</h2>
-              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>_beta V2.6</p>
-              <p style={{color: 'var(--wp-muted)', fontSize: 13}}>Uncensored & Private Assistant</p>
+          {/* --- HEADER MODAL (VERTICALE) --- */}
+          <div className="wpModalInfoHeader">
+            <div className="wpMainLogo">
+              VOID<span className="logoDot">.</span>AI
             </div>
-
+            <span className="wpVersionText">beta v3.0</span>
+          </div>
+          
+          <div style={{textAlign: 'center', marginBottom: 20}}>
+            <p style={{margin: '5px 0 0 0', color: 'var(--wp-muted)', fontSize: 13}}>
+              Uncensored & Private Assistant
+            </p>
+          </div>
             <div className="wpSection">
               <span className="wpLabel">Useful Links</span>
               <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
@@ -1471,22 +1555,90 @@ const handleImportChats = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <span style={{fontSize: 18, marginRight: 8}}>⭐</span> GitHub Repository
                 </a>
 
-                {/* FAQ */}
-                <a href="#" onClick={() => alert("FAQ coming soon!")} className="wpBtn" style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}>
-                  <span style={{display: 'flex', alignItems: 'center', gap: 8}}>
-                    <FileText size={16} /> FAQ
-                  </span>
-                </a>
-
-                {/* Terms */}
-                <a href="#" onClick={() => alert("Terms coming soon!")} className="wpBtn" style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}>
-                  <span style={{display: 'flex', alignItems: 'center', gap: 8}}>
-                    <CheckCircle size={16} /> Terms & Privacy
-                  </span>
-                </a>
+                {/* FAQ: Apre il popup FAQ */}
+                <button 
+                  className="wpBtn" 
+                  onClick={() => setFaqOpen(true)}
+                  style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}
+                >
+                  <HelpCircle size={18} style={{marginRight: 8}} /> FAQ
+                </button>
+                
+                {/* TERMS: Apre il popup Terms */}
+                <button 
+                  className="wpBtn" 
+                  onClick={() => setTermsOpen(true)}
+                  style={{width: '100%', justifyContent: 'center', alignItems: 'center'}}
+                >
+                  <FileCheck size={18} style={{marginRight: 8}} /> Terms & Privacy
+                </button>
               </div>
             </div>
 
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* --- FAQ MODAL --- */}
+    {faqOpen && (
+      <div className="wpModalBackdrop" onMouseDown={() => setFaqOpen(false)}>
+        <div className="wpModal wpFaqModal" onMouseDown={e => e.stopPropagation()}>
+          <div className="wpModalHead">
+            <span className="wpModalTitle">Frequently Asked Questions</span>
+            <button className="wpBtn" onClick={() => setFaqOpen(false)}>Close</button>
+          </div>
+          <div className="wpModalContent">
+            <div className="faqList">
+              
+              <div className="faqItem">
+                <div className="faqQ"><HelpCircle size={16} style={{marginRight: 6}} /> Is VOID AI really uncensored?</div>
+                <div className="faqA">Yes. We do not filter content. The AI models run locally or on our uncensored servers without content moderation filters.</div>
+              </div>
+
+              <div className="faqItem">
+                <div className="faqQ"><HelpCircle size={16} style={{marginRight: 6}} /> Do you store my data?</div>
+                <div className="faqA">We don't store chat logs on our servers. All conversations are stored locally in your browser (LocalStorage). Your privacy is our priority.</div>
+              </div>
+
+              <div className="faqItem">
+                <div className="faqQ"><HelpCircle size={16} style={{marginRight: 6}} /> How do payments work?</div>
+                <div className="faqA">We accept Bitcoin and Monero. Payment is manual. You send the funds to our address and the system verifies the blockchain transaction to generate your access token.</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* --- TERMS & PRIVACY MODAL --- */}
+    {termsOpen && (
+      <div className="wpModalBackdrop" onMouseDown={() => setTermsOpen(false)}>
+        <div className="wpModal wpTermsModal" onMouseDown={e => e.stopPropagation()}>
+          <div className="wpModalHead">
+            <span className="wpModalTitle">Terms & Privacy</span>
+            <button className="wpBtn" onClick={() => setTermsOpen(false)}>Close</button>
+          </div>
+          <div className="wpModalContent">
+            <div className="termsContent">
+              
+              <h3>1. Privacy Policy</h3>
+              <p>We do not collect personal identifiable information (PII). No accounts, no email addresses required. We may collect anonymous usage data to prevent abuse and ensure service stability.</p>
+              
+              <h3>2. Data Storage</h3>
+              <p>All chat history is stored locally on your device via LocalStorage. We do not have access to your private conversations. If you clear your browser cache, you will lose your chats.</p>
+              
+              <h3>3. Payments & Monero</h3>
+              <p>We accept Cryptocurrency (BTC/XMR). All payments are final and non-refundable. We do not track transactions on the blockchain.</p>
+              
+              <h3>4. Disclaimer</h3>
+              <p>VOID AI is an uncensored AI assistant. The responses generated by the AI are the result of machine learning algorithms and do not reflect the views of the developers. You are responsible for the content you generate and share.</p>
+              
+              <h3>5. Limitation of Liability</h3>
+              <p>The service is provided "as is". We are not liable for any damages arising from the use of this software.</p>
+              
+            </div>
           </div>
         </div>
       </div>

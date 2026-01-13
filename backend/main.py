@@ -29,7 +29,7 @@ WALLET_XMR = os.getenv("WALLET_XMR", "44Affq6kbKs4YmM2aVZGQV3wXJvP8kR8p9")
 
 # --- CONFIGURATION ---
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-mistral")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "dolphin-mistral:latest")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
