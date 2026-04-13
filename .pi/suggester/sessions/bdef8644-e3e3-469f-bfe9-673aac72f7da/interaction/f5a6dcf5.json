@@ -1,0 +1,174 @@
+{
+  "stateVersion": 9,
+  "pendingNextTurnObservation": {
+    "suggestionTurnId": "f5a6dcf5",
+    "suggestionShownAt": "2026-04-03T17:30:35.733Z",
+    "userPromptSubmittedAt": "2026-04-04T16:47:06.656Z",
+    "variantName": "default",
+    "strategy": "compact",
+    "requestedStrategy": "compact"
+  },
+  "steeringHistory": [
+    {
+      "turnId": "2adffd69",
+      "suggestedPrompt": "perfetto. ora verifica che la build docker funzioni ancora e che non ci siano errori di compilazione typescript",
+      "actualUserPrompt": "ok però devi togliere anche ADVANCED SETTINGS... dalla parte con PAYMENTS_ENABLED=1",
+      "classification": "changed_course",
+      "similarity": 0.18041237113402062,
+      "timestamp": "2026-04-03T15:47:50.000Z"
+    },
+    {
+      "turnId": "3181991d",
+      "suggestedPrompt": "si procedi",
+      "actualUserPrompt": "ok ora fai queste piccole modifiche: fai tutto più zoomato di un 15% e rendi il box della chat poco più grande quando è in schermo intero. Poi sistama il menu a tendina per la scelta dei modelli, perchè se scelgo un modello con il nome corto e tiro giù la tendina e c'è un modello con il nome più lungo, quello uscirà dal riquadro, quindi semplicemente rendi il riguadro lungo tanto quanto il nome più lungo, non so se capisci che intendo. infine in self-hosted fai advence settings e metti sotto i 2 spazi per mettere l'url con sopra il piccolo sottotitolo come ora ed i bottoni, scrivi anche per l'altro set url. se non capisci qualcosa o vuoi sapere altro fammi le domande",
+      "classification": "changed_course",
+      "similarity": 0.014598540145985401,
+      "timestamp": "2026-04-03T15:55:37.437Z"
+    },
+    {
+      "turnId": "4ff2b7fc",
+      "suggestedPrompt": "si commita",
+      "actualUserPrompt": "no allora ci sono delle cose da sistemare: quando sono in schermo intero diciamo ora la parte per scrivere con send stop eccetera, non si vede viene tagliata sotto. poi invece per advance setting sistemale così: togli: il simbolo in AI BACKEND URL. poi nel bottone di AI BACKEND URL scrivi Set URL al posto di save. e il testo sotto BACKEND API URL rimetti quello che avevi scritto prima",
+      "classification": "changed_course",
+      "similarity": 0.03380960653174672,
+      "timestamp": "2026-04-03T16:06:06.138Z"
+    },
+    {
+      "turnId": "14aefd5a",
+      "suggestedPrompt": "perfetto. puoi committare?",
+      "actualUserPrompt": "no ma la prima volta che lo avevi modificato era diverso",
+      "classification": "changed_course",
+      "similarity": 0.14634146341463414,
+      "timestamp": "2026-04-03T16:17:18.993Z"
+    },
+    {
+      "turnId": "9231482a",
+      "suggestedPrompt": "ok commita",
+      "actualUserPrompt": "ok commita tutto",
+      "classification": "changed_course",
+      "similarity": 0.717948717948718,
+      "timestamp": "2026-04-03T16:18:15.120Z"
+    },
+    {
+      "turnId": "1cff451d",
+      "suggestedPrompt": "però ora il bottone autopay non c'è nemmeno in btc, lo hai tolto? e se clicco paga rimane stuck su \"Fetching current rates...\"",
+      "actualUserPrompt": "ok ora ridimmi bene cosa l'utente dovrebbe fare se volesse usarlo self-hosted o se volesse usarlo per venderela",
+      "classification": "changed_course",
+      "similarity": 0.23885277682746037,
+      "timestamp": "2026-04-03T16:19:53.102Z"
+    },
+    {
+      "turnId": "1da0c48d",
+      "suggestedPrompt": "ok perfetto. ora però il problema principale è che sia con PAYMENTS_ENABLED=0 che =1 mi dà \"Zero Credits left\". E il bottone Get Credits è sempre cliccabile ma non fa nulla. Systema questo.",
+      "actualUserPrompt": "ok ora dimmi meglio a che serve redis? e poi controlla se il free limits ed il ttl funzionano correttamente e dimmi come funzionano, perchè non ricordo che funzionassero correttamente",
+      "classification": "changed_course",
+      "similarity": 0.2614247311827957,
+      "timestamp": "2026-04-03T16:23:13.647Z"
+    },
+    {
+      "turnId": "1c54039d",
+      "suggestedPrompt": "Sì, procedi con l'opzione C. Poi controlla anche il fatto che mi dice \"Zero Credits left\" anche con PAYMENTS_ENABLED=0 e il bottone Get Credits che non funziona.",
+      "actualUserPrompt": "si, ma non so se lasciare l'opzione dei free credits, perchè l'utente può aggirarlo con vpn o cose simili giusto? e poi significherebbe salavare i dati dell'utetne o sbaglio?",
+      "classification": "changed_course",
+      "similarity": 0.278886815920398,
+      "timestamp": "2026-04-03T16:25:22.992Z"
+    },
+    {
+      "turnId": "802fd6e7",
+      "suggestedPrompt": "si rimuovi i free credits. ma prima risolvi il problema che ho detto: con PAYMENTS_ENABLED=0 mi dà \"Zero Credits left\". systema quello prima di toccare altro.",
+      "actualUserPrompt": "si esatto fai così.\npoi devi cambiare anche tutte le parti con scritto uncensored anche nella faq ed in terms and privacy e controllare che tutte le cose scritte siano coerenti",
+      "classification": "changed_course",
+      "similarity": 0.23599859105318774,
+      "timestamp": "2026-04-03T16:27:47.188Z"
+    },
+    {
+      "turnId": "4444ae6b",
+      "suggestedPrompt": "procedi",
+      "actualUserPrompt": "procedi, poi fai anche: al posto di free (in self-hosted che hai messo al posto di credits) srivi local o qualcosa di simile o puoi anche non scrivere nulla. e poi anche per l'id che c'è prima a cosa serve che non ricordo? non penso però serva per l'utente self-hosted",
+      "classification": "changed_course",
+      "similarity": 0.038968058968058966,
+      "timestamp": "2026-04-03T16:35:10.652Z"
+    },
+    {
+      "turnId": "cecdaeec",
+      "suggestedPrompt": "perfetto. ora controlla se c'è ancora qualche stringa in italiano o riferimento a \"uncensored\" rimasto nel codice o nei testi, e poi dimmi se c'è altro da sistemare prima di rilasciare.",
+      "actualUserPrompt": "ma id, l'hai tolto anche per la versione con i pagamenti perchè non serviva giusto? poi per quanto rigurda il rate limit registra l'ip, giusto? però non voglio che l'ip venga salvato o altro non si può fare in modo che non si possa sapere dell'ip tipo criptandolo o qualcosa del genere",
+      "classification": "changed_course",
+      "similarity": 0.22985074626865673,
+      "timestamp": "2026-04-03T16:45:44.944Z"
+    },
+    {
+      "turnId": "a37257ef",
+      "suggestedPrompt": "ok perfetto. allora procedi con le modifiche che avevi detto prima: zoom, dropdown modelli e advance settings in self-hosted.",
+      "actualUserPrompt": "si però anche se sono irreversibili quanto rimangono salvati? perchè se server salt viene leakkato si potrebbero recuperare",
+      "classification": "changed_course",
+      "similarity": 0.18951612903225806,
+      "timestamp": "2026-04-03T16:47:25.697Z"
+    },
+    {
+      "turnId": "d53f83d7",
+      "suggestedPrompt": "sì applicalo. e poi rispondimi anche alle altre domande: a che serve redis esattamente? e come funziona il free limits/ttl? e dimmi bene la difference tra uso self-hosted e vendita.",
+      "actualUserPrompt": "si applicalo",
+      "classification": "changed_course",
+      "similarity": 0.07366148531951641,
+      "timestamp": "2026-04-03T16:48:42.085Z"
+    },
+    {
+      "turnId": "46d2b350",
+      "suggestedPrompt": "ok perfetto. procedi e committa tutto.",
+      "actualUserPrompt": "ok, poi invece per quanto riguarda i pagamenti con btc, dimmi meglio come funzionano, poi invece di btcpay volevo usare blockonomics, che mi sembra pià semplice oppure lasciare che l'utente possa servire il",
+      "classification": "changed_course",
+      "similarity": 0.14093806921675775,
+      "timestamp": "2026-04-03T16:52:44.206Z"
+    },
+    {
+      "turnId": "f4de0d98",
+      "suggestedPrompt": "continue",
+      "actualUserPrompt": "ok, poi invece per quanto riguarda i pagamenti con btc e xmr, dimmi  meglio come funzionano.\n poi invece di btcpay volevo usare blockonomics, che mi sembra pià semplice oppure lasciare che l'utente possa sceglire qullo che preferisce.",
+      "classification": "changed_course",
+      "similarity": 0.03333333333333333,
+      "timestamp": "2026-04-03T16:53:28.190Z"
+    },
+    {
+      "turnId": "b3f3e28a",
+      "suggestedPrompt": "si, fallo",
+      "actualUserPrompt": "no aspetta tutto questa parte è da rifare o risitemare tutta, al momento fa schifo.\nfacciamo per punti. il pagamento manuale non si può fare giusto? quindi per quanto riguarda btc si deve trovare un modo per far si che l'utente possa sistemare tutto dal file env senza che debba toccare una riga di codice (questo vale in generale per tutto). mentre per xmr se non esiste un modo, come facciamo? perchè anche manuale non sembra sia fattibile? non so dammi un po di idee e vediamo",
+      "classification": "changed_course",
+      "similarity": 0.025585480093676814,
+      "timestamp": "2026-04-03T16:58:38.654Z"
+    },
+    {
+      "turnId": "4dcc7d32",
+      "suggestedPrompt": "3. Lascia tutte e 3 le opzioni. L'utente deve poter scegliere il provider che preferisce. Procedi con l'implementazione.",
+      "actualUserPrompt": "ok però togli Blockonomics, non ha senso tenerlo, nowpayments sembra perfetto così gestisce tutti e 2 e lascimolo principale, poi l'utente più esperto se vuole può configurare btcpay. ed i pagamenti manuali li puoi togliere non servono. poi per quanto riguarda il cambio btc/dollari, lo fa in automatico nowpayments oppure bisogna aggiungere unapi o qualcosaltro? \ndocumento api: https://documenter.getpostman.com/view/7907941/2s93JusNJt#intro",
+      "classification": "changed_course",
+      "similarity": 0.1775613410751077,
+      "timestamp": "2026-04-03T17:07:35.174Z"
+    },
+    {
+      "turnId": "c58b37fb",
+      "suggestedPrompt": "si procedi. ma una cosa: xmr con nowpayments va bene? e per il self-hosted, assicurati che se disabilito i pagamenti non ci siano dipendenze esterne o errori.",
+      "actualUserPrompt": "si procedi",
+      "classification": "changed_course",
+      "similarity": 0.09523809523809523,
+      "timestamp": "2026-04-03T17:10:14.540Z"
+    },
+    {
+      "turnId": "b71d2d3c",
+      "suggestedPrompt": "controlla anche se l'input field usa quella funzione per inviare la richiesta al backend quando si cambia l'url, altrimenti non funziona.",
+      "actualUserPrompt": "procedi",
+      "classification": "changed_course",
+      "similarity": 0.041666666666666664,
+      "timestamp": "2026-04-03T17:29:00.172Z"
+    },
+    {
+      "turnId": "f5a6dcf5",
+      "suggestedPrompt": "ottimo. quindi ora il sistema è completo? posso testare tutto o c'è altro da sistemare?",
+      "actualUserPrompt": "ottimo. quindi ora il sistema è completo? posso testare tutto o c'è altro da sistemare?",
+      "classification": "accepted_exact",
+      "similarity": 1,
+      "timestamp": "2026-04-04T16:47:06.656Z"
+    }
+  ],
+  "turnsSinceLastStalenessCheck": 0
+}

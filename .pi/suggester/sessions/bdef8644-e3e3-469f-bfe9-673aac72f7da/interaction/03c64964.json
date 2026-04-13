@@ -1,0 +1,46 @@
+{
+  "stateVersion": 9,
+  "pendingNextTurnObservation": {
+    "suggestionTurnId": "03c64964",
+    "suggestionShownAt": "2026-04-02T16:04:07.755Z",
+    "userPromptSubmittedAt": "2026-04-02T16:06:52.539Z",
+    "variantName": "default",
+    "strategy": "compact",
+    "requestedStrategy": "compact"
+  },
+  "steeringHistory": [
+    {
+      "turnId": "2c6c680a",
+      "suggestedPrompt": "Looks good.",
+      "actualUserPrompt": "ok ora però quando faccio npm run dev mi da: \nnpm error Missing script: \"dev\"\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run",
+      "classification": "changed_course",
+      "similarity": 0.038461538461538464,
+      "timestamp": "2026-04-02T15:41:35.326Z"
+    },
+    {
+      "turnId": "961de64f",
+      "suggestedPrompt": "cd frontend && npm run dev",
+      "actualUserPrompt": "/skill:planner ci sono in realtà molte cose da sistemare, perchè inizialemente doveva essere un progetto da mettere online e basta, però visto che tanto non verrebbe usato da nessuno, preferisco renderlo pubblico e metterlo su github come progetto opensource, come mi consigli di cambiarlo? voglio tenere per la maggior parte il lavoro fatto, ma allo stesso tempo voglio che sia utile agli utenti che magaari lo vogliono utilizzare o altro. puoi farmi delle domande se vuoi sapere altro o non capisci qualcosa o per qualunque altra cosa",
+      "classification": "changed_course",
+      "similarity": 0.042704626334519574,
+      "timestamp": "2026-04-02T15:55:34.208Z"
+    },
+    {
+      "turnId": "c92f5200",
+      "suggestedPrompt": "1a, 2c, 3a, 4b, 5a, 6b, 7b, 8c. Ma prima risolvi l'errore npm: manca lo script \"dev\" in package.json.",
+      "actualUserPrompt": "aspetta approfondiamo una domanda alla volta, visto che non so bene ancora io cosa voglio fare, per la prima ti direi che oltre ad essere un progetto portfolio più di tutto, voglio che però possa essere un minimo utile se mai a qualcuno potrebbe interessare, però per la parte dei pagamenti e tutto non l'ho completata, quindi non posso metterlo lasciato a metà (anche se non mi ricordo bene cosa manca o altro, perchè è da qualche mese che l'avevo lasciato), però non voglio nemmeno toglierli perchè ci avevo lavorato molto",
+      "classification": "changed_course",
+      "similarity": 0.1232470588235294,
+      "timestamp": "2026-04-02T16:03:53.750Z"
+    },
+    {
+      "turnId": "03c64964",
+      "suggestedPrompt": "Mi sembra un buon approccio. Prima però devi risolvere l'errore npm: \"Missing script: dev\". Puoi controllare il package.json?",
+      "actualUserPrompt": "quindi in realtà è quasi completato giusto? se è così possiamo completare e poi fare come dici tu, dividerlo in 2 parti diciamo",
+      "classification": "changed_course",
+      "similarity": 0.19444444444444445,
+      "timestamp": "2026-04-02T16:06:52.539Z"
+    }
+  ],
+  "turnsSinceLastStalenessCheck": 4
+}

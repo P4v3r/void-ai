@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "3caf9155-6d5a-4358-84dd-62baad79cacb",
+  "sessionFile": "/Users/Privacy/.pi/agent/sessions/--Users-Privacy-Documents-projects-github-projects-void-ai--/2026-04-13T23-38-24-184Z_3caf9155-6d5a-4358-84dd-62baad79cacb.jsonl",
+  "cwd": "/Users/Privacy/Documents/projects/github-projects/void-ai",
+  "ignoreLegacyPiSessionEntries": true,
+  "legacyMigration": {
+    "performedAt": "2026-04-13T23:38:30.072Z",
+    "importedLegacyEntries": false,
+    "legacyStateEntryCount": 0,
+    "legacyUsageEntryCount": 0,
+    "note": "Legacy suggester-state/suggester-usage pi session entries were imported once into extension-owned storage and are ignored afterwards."
+  }
+}

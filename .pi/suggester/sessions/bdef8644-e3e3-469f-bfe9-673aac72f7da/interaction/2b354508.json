@@ -1,0 +1,174 @@
+{
+  "stateVersion": 9,
+  "pendingNextTurnObservation": {
+    "suggestionTurnId": "2b354508",
+    "suggestionShownAt": "2026-04-04T19:23:20.172Z",
+    "userPromptSubmittedAt": "2026-04-04T19:24:20.911Z",
+    "variantName": "default",
+    "strategy": "compact",
+    "requestedStrategy": "compact"
+  },
+  "steeringHistory": [
+    {
+      "turnId": "d53f83d7",
+      "suggestedPrompt": "sì applicalo. e poi rispondimi anche alle altre domande: a che serve redis esattamente? e come funziona il free limits/ttl? e dimmi bene la difference tra uso self-hosted e vendita.",
+      "actualUserPrompt": "si applicalo",
+      "classification": "changed_course",
+      "similarity": 0.07366148531951641,
+      "timestamp": "2026-04-03T16:48:42.085Z"
+    },
+    {
+      "turnId": "46d2b350",
+      "suggestedPrompt": "ok perfetto. procedi e committa tutto.",
+      "actualUserPrompt": "ok, poi invece per quanto riguarda i pagamenti con btc, dimmi meglio come funzionano, poi invece di btcpay volevo usare blockonomics, che mi sembra pià semplice oppure lasciare che l'utente possa servire il",
+      "classification": "changed_course",
+      "similarity": 0.14093806921675775,
+      "timestamp": "2026-04-03T16:52:44.206Z"
+    },
+    {
+      "turnId": "f4de0d98",
+      "suggestedPrompt": "continue",
+      "actualUserPrompt": "ok, poi invece per quanto riguarda i pagamenti con btc e xmr, dimmi  meglio come funzionano.\n poi invece di btcpay volevo usare blockonomics, che mi sembra pià semplice oppure lasciare che l'utente possa sceglire qullo che preferisce.",
+      "classification": "changed_course",
+      "similarity": 0.03333333333333333,
+      "timestamp": "2026-04-03T16:53:28.190Z"
+    },
+    {
+      "turnId": "b3f3e28a",
+      "suggestedPrompt": "si, fallo",
+      "actualUserPrompt": "no aspetta tutto questa parte è da rifare o risitemare tutta, al momento fa schifo.\nfacciamo per punti. il pagamento manuale non si può fare giusto? quindi per quanto riguarda btc si deve trovare un modo per far si che l'utente possa sistemare tutto dal file env senza che debba toccare una riga di codice (questo vale in generale per tutto). mentre per xmr se non esiste un modo, come facciamo? perchè anche manuale non sembra sia fattibile? non so dammi un po di idee e vediamo",
+      "classification": "changed_course",
+      "similarity": 0.025585480093676814,
+      "timestamp": "2026-04-03T16:58:38.654Z"
+    },
+    {
+      "turnId": "4dcc7d32",
+      "suggestedPrompt": "3. Lascia tutte e 3 le opzioni. L'utente deve poter scegliere il provider che preferisce. Procedi con l'implementazione.",
+      "actualUserPrompt": "ok però togli Blockonomics, non ha senso tenerlo, nowpayments sembra perfetto così gestisce tutti e 2 e lascimolo principale, poi l'utente più esperto se vuole può configurare btcpay. ed i pagamenti manuali li puoi togliere non servono. poi per quanto riguarda il cambio btc/dollari, lo fa in automatico nowpayments oppure bisogna aggiungere unapi o qualcosaltro? \ndocumento api: https://documenter.getpostman.com/view/7907941/2s93JusNJt#intro",
+      "classification": "changed_course",
+      "similarity": 0.1775613410751077,
+      "timestamp": "2026-04-03T17:07:35.174Z"
+    },
+    {
+      "turnId": "c58b37fb",
+      "suggestedPrompt": "si procedi. ma una cosa: xmr con nowpayments va bene? e per il self-hosted, assicurati che se disabilito i pagamenti non ci siano dipendenze esterne o errori.",
+      "actualUserPrompt": "si procedi",
+      "classification": "changed_course",
+      "similarity": 0.09523809523809523,
+      "timestamp": "2026-04-03T17:10:14.540Z"
+    },
+    {
+      "turnId": "b71d2d3c",
+      "suggestedPrompt": "controlla anche se l'input field usa quella funzione per inviare la richiesta al backend quando si cambia l'url, altrimenti non funziona.",
+      "actualUserPrompt": "procedi",
+      "classification": "changed_course",
+      "similarity": 0.041666666666666664,
+      "timestamp": "2026-04-03T17:29:00.172Z"
+    },
+    {
+      "turnId": "f5a6dcf5",
+      "suggestedPrompt": "ottimo. quindi ora il sistema è completo? posso testare tutto o c'è altro da sistemare?",
+      "actualUserPrompt": "ottimo. quindi ora il sistema è completo? posso testare tutto o c'è altro da sistemare?",
+      "classification": "accepted_exact",
+      "similarity": 1,
+      "timestamp": "2026-04-04T16:47:06.656Z"
+    },
+    {
+      "turnId": "759bea31",
+      "suggestedPrompt": "perfetto, procedo con il commit finale",
+      "actualUserPrompt": "meno male che non dovevano esserci problemi, quando faccio uvicorn main:app --reload --port 8000 per attivare il backend mi da:\nProcess SpawnProcess-1:\nTraceback (most recent call last):\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/process.py\", line 320, in _bootstrap\n    self.run()\n    ~~~~~~~~^^\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/multiprocessing/process.py\", line 108, in run\n    self._target(*self._args, **self._kwargs)\n    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/_subprocess.py\", line 80, in subprocess_started\n    target(sockets=sockets)\n    ~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/server.py\", line 75, in run\n    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/runners.py\", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/runners.py\", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"uvloop/loop.pyx\", line 1518, in uvloop.loop.Loop.run_until_complete\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/server.py\", line 79, in serve\n    await self._serve(sockets)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/server.py\", line 86, in _serve\n    config.load()\n    ~~~~~~~~~~~^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/config.py\", line 441, in load\n    self.loaded_app = import_from_string(self.app)\n                      ~~~~~~~~~~~~~~~~~~^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/importer.py\", line 19, in import_from_string\n    module = importlib.import_module(module_str)\n  File \"/opt/homebrew/Cellar/python@3.14/3.14.3_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1398, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1371, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1342, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 938, in _load_unlocked\n  File \"<frozen importlib._bootstrap_external>\", line 759, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 491, in _call_with_frames_removed\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/main.py\", line 52, in <module>\n    from routes.chat import router as chat_router            # noqa: E402\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/routes/chat.py\", line 9, in <module>\n    from middleware.auth import enforce_limits\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/middleware/auth.py\", line 14, in <module>\n    from utils.helpers import get_raw_ip\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/utils/helpers.py\", line 7, in <module>\n    from models.pydantic import ChatIn\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/models/__init__.py\", line 3, in <module>\n    from models.pydantic import ChatMsg, ChatIn, ProInvoiceIn, ClaimIn, ManualClaimIn\nImportError: cannot import name 'ProInvoiceIn' from 'models.pydantic' (/Users/Privacy/Documents/projects/github-projects/void-ai/backend/models/pydantic.py)",
+      "classification": "changed_course",
+      "similarity": 0.01270240407806735,
+      "timestamp": "2026-04-04T17:06:33.765Z"
+    },
+    {
+      "turnId": "c71ba532",
+      "suggestedPrompt": "ok perfetto. ora il sistema è completo e stabile? posso procedere con il commit finale e aggiorno la documentazione?",
+      "actualUserPrompt": "allora ho impostato l'env con api ed ipn, ma quando clicco sul bottone per pagare mi da sempre: Unable to create payment. Payment gateway error: 429",
+      "classification": "changed_course",
+      "similarity": 0.20916481892091648,
+      "timestamp": "2026-04-04T17:08:54.262Z"
+    },
+    {
+      "turnId": "632cd68f",
+      "suggestedPrompt": "ok controllo. intanto che ci siamo, puoi verificare se ci sono ancora stringhe in italiano nel codice?",
+      "actualUserPrompt": "ho creato un'altra api key ed ora mi da: Unable to create payment. Payment gateway error: 400. Mentre nei log mi da: \nRedis connected at redis://localhost:6379/0\nINFO:     Application startup complete.\nINFO:     127.0.0.1:55736 - \"GET /config HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:55737 - \"POST /chat/stream HTTP/1.1\" 400 Bad Request\nINFO:     127.0.0.1:55735 - \"GET /models HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:55735 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\nINFO:     127.0.0.1:55736 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway",
+      "classification": "changed_course",
+      "similarity": 0.12115013809995309,
+      "timestamp": "2026-04-04T17:11:53.357Z"
+    },
+    {
+      "turnId": "64a648c7",
+      "suggestedPrompt": "ok provo. se va tutto bene poi controlla se ci sono ancora stringhe in italiano nel codice?",
+      "actualUserPrompt": "ho questo nei log:\nINFO:     127.0.0.1:56000 - \"GET /config HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:56001 - \"POST /chat/stream HTTP/1.1\" 400 Bad Request\nINFO:     127.0.0.1:55999 - \"GET /models HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:55999 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\nINFO:     127.0.0.1:56000 - \"POST /create-payment HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:56023 - \"GET /pro/pending-payment/void_plus_1775322831_b60d75b7 HTTP/1.1\" 500 Internal Server Error\nERROR:    Exception in ASGI application\nTraceback (most recent call last):\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/protocols/http/httptools_impl.py\", line 416, in run_asgi\n    result = await app(  # type: ignore[func-returns-value]\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        self.scope, self.receive, self.send\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    )\n    ^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/uvicorn/middleware/proxy_headers.py\", line 60, in __call__\n    return await self.app(scope, receive, send)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/applications.py\", line 1163, in __call__\n    await super().__call__(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/applications.py\", line 90, in __call__\n    await self.middleware_stack(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py\", line 186, in __call__\n    raise exc\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/middleware/errors.py\", line 164, in __call__\n    await self.app(scope, receive, _send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py\", line 96, in __call__\n    await self.simple_response(scope, receive, send, request_headers=headers)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/middleware/cors.py\", line 154, in simple_response\n    await self.app(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py\", line 63, in __call__\n    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\n    raise exc\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\n    await app(scope, receive, sender)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py\", line 18, in __call__\n    await self.app(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/routing.py\", line 660, in __call__\n    await self.middleware_stack(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/routing.py\", line 680, in app\n    await route.handle(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/routing.py\", line 276, in handle\n    await self.app(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py\", line 134, in app\n    await wrap_app_handling_exceptions(app, request)(scope, receive, send)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py\", line 53, in wrapped_app\n    raise exc\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py\", line 42, in wrapped_app\n    await app(scope, receive, sender)\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py\", line 120, in app\n    response = await f(request)\n               ^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py\", line 674, in app\n    raw_response = await run_endpoint_function(\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n    )\n    ^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/.venv/lib/python3.14/site-packages/fastapi/routing.py\", line 328, in run_endpoint_function\n    return await dependant.call(**values)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/Privacy/Documents/projects/github-projects/void-ai/backend/routes/pro.py\", line 57, in get_pending_payment\n    row = conn.execute(\n          ~~~~~~~~~~~~^\n        \"SELECT invoices.invoice_id, pro_tokens.token_hash, invoices.credits \"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    ...<3 lines>...\n        (order_id,),\n        ^^^^^^^^^^^^\n    ).fetchone()\n    ^\nsqlite3.OperationalError: no such column: invoices.order_id\nINFO:     127.0.0.1:56026 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\nINFO:     127.0.0.1:56025 - \"POST /create-payment HTTP/1.1\" 200 OK\nINFO:     127.0.0.1:56053 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\nINFO:     127.0.0.1:56054 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway",
+      "classification": "changed_course",
+      "similarity": 0.021515495202771052,
+      "timestamp": "2026-04-04T17:14:43.441Z"
+    },
+    {
+      "turnId": "96f704ff",
+      "suggestedPrompt": "ok, ecco i log dopo il riavvio:\n\nINFO:     127.0.0.1:55800 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\nERROR:    Exception in ASGI application\n...\nhttpx.HTTPStatusError: Client error '400 Bad Re",
+      "actualUserPrompt": "mi da questo per i 2 dollari:\nUnable to create payment.\n\nPayment gateway error 400: {\"status\":false,\"statusCode\":400,\"code\":\"AMOUNT_MINIMAL_ERROR\",\"message\":\"Crypto amount 0.00002969 is less than minimal\"}\n\nmentre per gli altri, mi da per pochi secondi questo messaggio: INFO:     127.0.0.1:62701 - \"POST /create-payment HTTP/1.1\" 502 Bad Gateway\n[NOWPayments] HTTP 429 on order_id=void_plus_1775327116_cd93cd98: <html>\n<head><title>429 Too Many Requests</title></head>\n<body>\n<center><h1>429 Too Many Requests</h1></center>\n<hr><center>nginx</center>\n</body>\n</html>\npoi mi da il qr code",
+      "classification": "changed_course",
+      "similarity": 0.27057245080500897,
+      "timestamp": "2026-04-04T18:26:14.321Z"
+    },
+    {
+      "turnId": "34651ffe",
+      "suggestedPrompt": "ok riavvio. poi controlla se ci sono altre stringhe in italiano?",
+      "actualUserPrompt": "si ma anche con 5$ (ho provato anche con 10$) mi da sempre \nHTTP 400 on order_id=void_starter_1775327595_0f6332db: {\"status\":false,\"statusCode\":400,\"code\":\"AMOUNT_MINIMAL_ERROR\",\"message\":\"Crypto amount 0.00007427 is less than minimal\"}",
+      "classification": "changed_course",
+      "similarity": 0.12709030100334448,
+      "timestamp": "2026-04-04T18:40:19.361Z"
+    },
+    {
+      "turnId": "0cbea319",
+      "suggestedPrompt": "ok. ma se non metto i piani nell'env, il frontend come si comporta? non deve crashare. e per i pagamenti, la logica ora legge correttamente gli importi dall'env per chiamare nowpayments?",
+      "actualUserPrompt": "ok. ma se non metto i piani nell'env, il frontend come si comporta? non deve crashare. e per i pagamenti, la logica ora legge correttamente gli importi dall'env per chiamare nowpayments?",
+      "classification": "accepted_exact",
+      "similarity": 1,
+      "timestamp": "2026-04-04T18:59:40.908Z"
+    },
+    {
+      "turnId": "e2a3e92f",
+      "suggestedPrompt": "ok. ma il prezzo, quantità crediti e nome non si cambiano quando li cambio dall'env, rimangono sempre uguali.",
+      "actualUserPrompt": "ok ora modifica e sistema il readme con tutte le cose aggiunte, pagamenti come fare cosa fare, come sistamre env, privacy e tutto il resto, tutto fatto bene",
+      "classification": "changed_course",
+      "similarity": 0.2601787487586892,
+      "timestamp": "2026-04-04T19:08:24.606Z"
+    },
+    {
+      "turnId": "980cdba4",
+      "suggestedPrompt": "ottimo. quindi ora il sistema è completo? posso testare tutto o c'è altro da sistemare?",
+      "actualUserPrompt": "ok ora mi cambi il font con jetbrains mono",
+      "classification": "changed_course",
+      "similarity": 0.22591362126245848,
+      "timestamp": "2026-04-04T19:11:28.107Z"
+    },
+    {
+      "turnId": "5afcc606",
+      "suggestedPrompt": "ok. ora però risolvi il problema dei piani che non si aggiornano dall'env e la logica dei pagamenti che fallisce. dimmi qual è il prossimo step per fixare queste cose.",
+      "actualUserPrompt": "ok controlla che sia messo a tutti. poi controlla anche che ci sono ancora alcune emoji, come ad esempio: ⏳ Waiting for payment confirmation… rimuovile tutte e sostituiscele con le icone come nel resto",
+      "classification": "changed_course",
+      "similarity": 0.25928014766201807,
+      "timestamp": "2026-04-04T19:13:54.365Z"
+    },
+    {
+      "turnId": "867c1137",
+      "suggestedPrompt": "ottimo. ora mi cambi il font con jetbrains mono",
+      "actualUserPrompt": "ora sistema anche che il bottone per le setting quando stringo la finestra (che la sidebar si nasconde) scompare e non si può utilzzare e nella sidebar non si vede nemmeno VOID.AI ed il tasto info perchè coperti dalla barra in alto (quella con i modelli ed il tasto per aprirla)",
+      "classification": "changed_course",
+      "similarity": 0.14337792642140468,
+      "timestamp": "2026-04-04T19:20:18.940Z"
+    },
+    {
+      "turnId": "2b354508",
+      "suggestedPrompt": "ok procedi",
+      "actualUserPrompt": "ok ora si vede il bottone delle settings, ma non si vedono i crediti. mentre la sidebar ora va bene, però non compare ne void.ai ne il tasto info",
+      "classification": "changed_course",
+      "similarity": 0.0837468982630273,
+      "timestamp": "2026-04-04T19:24:20.911Z"
+    }
+  ],
+  "turnsSinceLastStalenessCheck": 7
+}
