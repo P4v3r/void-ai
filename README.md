@@ -1,6 +1,6 @@
 <div align="center">
 
-# VOID AI
+# VOID-AI
 
 **Privacy-first, self-hosted AI chat interface.**
 
